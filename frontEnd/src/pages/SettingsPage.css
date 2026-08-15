@@ -1,0 +1,133 @@
+/* ===== Settings Page ===== */
+.settings-page {
+  margin-left: var(--sidebar-width);
+  padding: 28px;
+  min-height: 100vh;
+  transition: margin-left var(--transition-base);
+}
+
+.settings-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.settings-page__header h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.settings-page__header p {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-top: 4px;
+}
+
+/* Sections */
+.settings-page__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 800px;
+}
+
+.settings-page__section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  color: var(--primary-400);
+}
+
+.settings-page__section-title h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Options */
+.settings-page__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-page__option:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.settings-page__option label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.settings-page__option p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.settings-page__select {
+  width: 200px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.settings-page__number {
+  width: 100px;
+  text-align: center;
+}
+
+/* Toggle Switch */
+.settings-page__toggle {
+  width: 52px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: rgba(100, 116, 139, 0.3);
+  position: relative;
+  transition: all var(--transition-base);
+  flex-shrink: 0;
+}
+
+.settings-page__toggle--on {
+  background: var(--primary-600);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+}
+
+.settings-page__toggle-dot {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  transition: transform var(--transition-base);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.settings-page__toggle--on .settings-page__toggle-dot {
+  transform: translateX(24px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .settings-page {
+    margin-left: 0;
+    padding: 16px;
+  }
+  .settings-page__option {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
