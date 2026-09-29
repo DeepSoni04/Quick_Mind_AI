@@ -1,7 +1,7 @@
 /* Sidebar.css — Spec: Section 6 "Sidebar" */
 
 .sidebar {
-  width: 76px;
+  width: 82px;
   height: 100vh;
   background-color: var(--bg-sidebar);
   border-right: 1px solid var(--divider-line);
@@ -58,7 +58,7 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 10px 4px;
+  padding: 10px 2px;
   background: none;
   border: none;
   cursor: pointer;
@@ -92,18 +92,17 @@
 }
 
 .sidebar__item-label {
-  font-size: 9.5px;
-  letter-spacing: 0.02em;
+  font-size: 9px;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   font-weight: 700;
   line-height: 1.15;
   font-family: var(--font-sans);
   text-align: center;
-  max-width: 68px;
+  width: 100%;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 0 2px;
+  overflow: visible;
+  padding: 0 1px;
 }
 
 .sidebar__item--active .sidebar__item-label {
@@ -177,18 +176,17 @@
 }
 
 .sidebar__user-label {
-  font-size: 9.5px;
-  letter-spacing: 0.02em;
+  font-size: 9px;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   font-weight: 700;
   line-height: 1.15;
   font-family: var(--font-sans);
   text-align: center;
-  max-width: 68px;
+  width: 100%;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 0 2px;
+  overflow: visible;
+  padding: 0 1px;
 }
 
 /* Logout button — small, understated, below avatar */

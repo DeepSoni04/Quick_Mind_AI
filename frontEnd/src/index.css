@@ -319,7 +319,6 @@ th, [class*="-th"] {
   color: rgba(220, 238, 252, 0.92) !important;
 }
 
-
 /* ---------- App Shell & Responsive Layout ---------- */
 .app-shell {
   display: flex;
@@ -342,17 +341,21 @@ th, [class*="-th"] {
 
 @media (max-width: 768px) {
   html, body {
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    height: 100%;
   }
 
   #root {
-    overflow: auto;
+    overflow: hidden;
+    height: 100%;
   }
 
   .app-shell {
     flex-direction: column;
     height: 100dvh;
+    width: 100%;
     overflow: hidden;
   }
 
@@ -361,7 +364,9 @@ th, [class*="-th"] {
     width: 100%;
     height: calc(100% - 60px);
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 60px;
+    box-sizing: border-box;
+    padding: 0;
   }
 }
