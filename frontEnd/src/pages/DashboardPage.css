@@ -29,8 +29,8 @@
 
 .dashboard-header-left p {
   font-size: 13px;
-  color: var(--text-muted);
-  font-weight: 300;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .dashboard-live-badge {
@@ -53,11 +53,11 @@
 }
 
 .dashboard-live-text {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(61, 184, 122, 0.72);
+  color: #3db87a;
 }
 
 /* ── Body ────────────────────────────────── */
@@ -87,11 +87,11 @@
 }
 
 .dashboard-stat-label {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.13em;
   text-transform: uppercase;
-  color: var(--text-muted);
-  font-weight: 400;
+  color: rgba(216, 235, 248, 0.85);
+  font-weight: 700;
 }
 
 .dashboard-stat-value {
@@ -109,8 +109,8 @@
 
 .dashboard-stat-sub {
   font-size: 11px;
-  color: var(--text-very-muted);
-  font-weight: 300;
+  color: rgba(210, 230, 246, 0.80);
+  font-weight: 600;
 }
 
 /* ── Section header ──────────────────────── */
@@ -130,7 +130,8 @@
 
 .btn-view-all {
   font-size: 12px;
-  color: rgba(254, 239, 184, 0.60);
+  font-weight: 700;
+  color: rgba(254, 239, 184, 0.90);
   background: none;
   border: none;
   cursor: pointer;
@@ -190,7 +191,8 @@
 
 .dashboard-recent-query {
   font-size: 13px;
-  color: rgba(196, 218, 232, 0.70);
+  font-weight: 600;
+  color: rgba(216, 235, 248, 0.92);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -198,7 +200,8 @@
 
 .dashboard-recent-meta {
   font-size: 11px;
-  color: var(--text-very-muted);
+  font-weight: 600;
+  color: rgba(210, 230, 246, 0.80);
   font-family: var(--font-mono);
 }
 
@@ -211,12 +214,13 @@
 
 .dashboard-recent-time {
   font-size: 11px;
-  color: var(--text-ultra-muted);
+  font-weight: 600;
+  color: rgba(206, 228, 245, 0.78);
 }
 
 /* status chips */
 .dash-status {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;

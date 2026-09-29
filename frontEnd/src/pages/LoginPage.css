@@ -82,8 +82,8 @@
 
 .login-tagline {
   font-size: 14px;
-  color: rgba(196, 218, 232, 0.50);
-  font-weight: 300;
+  color: rgba(216, 235, 248, 0.88);
+  font-weight: 500;
   line-height: 1.65;
   max-width: 240px;
   margin-bottom: 22px;
@@ -112,8 +112,8 @@
 
 .login-bullet-text {
   font-size: 13px;
-  color: rgba(196, 218, 232, 0.38);
-  font-weight: 300;
+  color: rgba(216, 235, 248, 0.85);
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -130,9 +130,9 @@
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(196, 218, 232, 0.30);
+  color: rgba(216, 235, 248, 0.88);
   margin-bottom: 26px;
-  font-weight: 400;
+  font-weight: 700;
 }
 
 .login-form {
@@ -147,9 +147,9 @@
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(196, 218, 232, 0.40);
+  color: rgba(216, 235, 248, 0.88);
   margin-bottom: 8px;
-  font-weight: 400;
+  font-weight: 700;
 }
 
 .login-input {
@@ -178,7 +178,8 @@
 
 .login-link {
   font-size: 12px;
-  color: rgba(254, 239, 184, 0.60);
+  font-weight: 600;
+  color: rgba(254, 239, 184, 0.90);
   text-decoration: none;
   font-family: var(--font-sans);
   transition: color 0.2s ease;
@@ -230,5 +231,6 @@
 
 .login-signup-text {
   font-size: 12px;
-  color: var(--text-muted);
+  font-weight: 600;
+  color: var(--text-secondary);
 }

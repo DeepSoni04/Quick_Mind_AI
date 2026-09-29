@@ -53,10 +53,10 @@
   --ambient-overlay-blue:    rgba(196, 218, 232, 0.03);
   --badge-select-bg:         rgba(196, 218, 232, 0.07);
   --badge-select-border:     rgba(196, 218, 232, 0.16);
-  --badge-select-text:       rgba(196, 218, 232, 0.70);
+  --badge-select-text:       rgba(216, 236, 250, 0.90);
   --badge-role-bg:           rgba(196, 218, 232, 0.08);
   --badge-role-border:       rgba(196, 218, 232, 0.20);
-  --badge-role-text:         rgba(196, 218, 232, 0.80);
+  --badge-role-text:         rgba(216, 236, 250, 0.92);
 
   /* Success Green — slightly desaturated/warmed to blend with brown bg */
   --accent-green:            #3db87a;
@@ -86,22 +86,22 @@
   --accent-amber:            #e8a84a;
   --badge-update-bg:         rgba(232, 168, 74, 0.08);
   --badge-update-border:     rgba(232, 168, 74, 0.18);
-  --badge-update-text:       rgba(232, 168, 74, 0.72);
+  --badge-update-text:       #f0b55e;
   --badge-pending-bg:        rgba(232, 168, 74, 0.10);
   --badge-pending-border:    rgba(232, 168, 74, 0.20);
   --badge-pending-text:      #e8a84a;
 
   /* Text Hierarchy — derived from Blue (#c4dae8) */
-  --text-primary:            #c4dae8;
+  --text-primary:            #dbeafe;
   --text-primary-alt:        #b8d0e0;
-  --text-body:               rgba(196, 218, 232, 0.80);
-  --text-secondary:          rgba(196, 218, 232, 0.60);
-  --text-secondary-dim:      rgba(196, 218, 232, 0.46);
-  --text-muted:              rgba(196, 218, 232, 0.34);
-  --text-muted-dim:          rgba(196, 218, 232, 0.28);
-  --text-very-muted:         rgba(196, 218, 232, 0.22);
-  --text-ultra-muted:        rgba(196, 218, 232, 0.17);
-  --sidebar-inactive:        rgba(196, 218, 232, 0.30);
+  --text-body:               rgba(224, 238, 248, 0.94);
+  --text-secondary:          rgba(210, 230, 245, 0.88);
+  --text-secondary-dim:      rgba(196, 220, 238, 0.82);
+  --text-muted:              rgba(196, 220, 238, 0.76);
+  --text-muted-dim:          rgba(196, 218, 232, 0.68);
+  --text-very-muted:         rgba(196, 218, 232, 0.60);
+  --text-ultra-muted:        rgba(196, 218, 232, 0.52);
+  --sidebar-inactive:        rgba(210, 230, 245, 0.78);
   --sidebar-active:          rgba(254, 239, 184, 0.95);
 }
 
@@ -266,4 +266,55 @@ html, body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(196, 218, 232, 0.20);
+}
+
+/* ==========================================================================
+   Small Text High-Visibility & Bold Design System
+   ========================================================================== */
+small,
+.small,
+.text-xs,
+.text-sm,
+caption,
+th,
+label {
+  font-weight: 700;
+  -webkit-font-smoothing: antialiased;
+}
+
+[class*="eyebrow"],
+[class*="-eyebrow"] {
+  font-weight: 700 !important;
+  color: rgba(216, 235, 248, 0.88) !important;
+  letter-spacing: 0.14em !important;
+}
+
+[class*="hint"],
+[class*="-hint"] {
+  font-weight: 600 !important;
+  color: rgba(216, 235, 248, 0.80) !important;
+}
+
+[class*="label"],
+[class*="-label"] {
+  font-weight: 700;
+}
+
+[class*="subtext"],
+[class*="-sub"],
+[class*="meta"],
+[class*="-meta"] {
+  font-weight: 600;
+  color: rgba(210, 230, 246, 0.84);
+}
+
+[class*="timestamp"],
+[class*="-time"] {
+  font-weight: 600;
+  color: rgba(206, 228, 245, 0.82);
+}
+
+th, [class*="-th"] {
+  font-weight: 700 !important;
+  color: rgba(220, 238, 252, 0.92) !important;
 }

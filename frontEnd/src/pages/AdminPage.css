@@ -264,11 +264,11 @@
 .admin-page__table th {
   padding: 11px 16px;
   text-align: left;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
-  font-weight: 400;
+  color: rgba(216, 235, 248, 0.90);
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -310,15 +310,16 @@
 
 .admin-page__user-name {
   font-size: 13px;
-  color: rgba(196, 218, 232, 0.72);
-  font-weight: 400;
+  color: rgba(216, 235, 248, 0.94);
+  font-weight: 600;
   margin-bottom: 2px;
 }
 
 .admin-page__user-email {
   font-size: 11px;
   font-family: var(--font-mono);
-  color: rgba(196, 218, 232, 0.26);
+  font-weight: 600;
+  color: rgba(216, 235, 248, 0.78);
 }
 
 /* Role badges */
@@ -478,7 +479,8 @@
 .admin-page__security-meta {
   font-size: 11px;
   font-family: var(--font-mono);
-  color: rgba(196, 218, 232, 0.26);
+  font-weight: 600;
+  color: rgba(216, 235, 248, 0.78);
 }
 
 .admin-page__severity-badge {

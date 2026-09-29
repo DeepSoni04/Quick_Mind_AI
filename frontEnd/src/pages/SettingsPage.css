@@ -25,8 +25,8 @@
 
 .settings-header p {
   font-size: 13px;
-  color: var(--text-muted);
-  font-weight: 300;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .settings-body {
@@ -39,10 +39,11 @@
 }
 
 .settings-section-label {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(196, 218, 232, 0.28);
+  color: rgba(216, 235, 248, 0.88);
+  font-weight: 700;
   margin-bottom: 14px;
   display: block;
 }
@@ -75,14 +76,14 @@
 
 .settings-row-label {
   font-size: 14px;
-  color: rgba(196, 218, 232, 0.72);
-  font-weight: 400;
+  color: rgba(216, 235, 248, 0.94);
+  font-weight: 600;
 }
 
 .settings-row-hint {
   font-size: 12px;
-  color: rgba(196, 218, 232, 0.26);
-  font-weight: 300;
+  color: rgba(216, 235, 248, 0.78);
+  font-weight: 600;
 }
 
 /* Custom toggle: 40×22px sliding switch */
@@ -155,7 +156,8 @@
 .settings-mono-value {
   font-family: var(--font-mono);
   font-size: 13px;
-  color: rgba(196, 218, 232, 0.40);
+  font-weight: 600;
+  color: rgba(216, 235, 248, 0.90);
 }
 
 /* Role badge */
@@ -173,7 +175,7 @@
 /* About footer text */
 .settings-about-footer {
   font-size: 12px;
-  color: rgba(196, 218, 232, 0.22);
+  color: rgba(216, 235, 248, 0.78);
   line-height: 1.65;
-  font-weight: 300;
+  font-weight: 600;
 }
