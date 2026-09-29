@@ -1,156 +1,118 @@
-import { useState } from 'react';
-import { History, Search, Trash2, Play, Clock, Database, Filter, Calendar } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getHistory } from '../context/api';
 import './HistoryPage.css';
 
-const MOCK_HISTORY = [
-  {
-    id: 1,
-    query: 'Show me all employees with salary above 1 lakh',
-    sql: 'SELECT * FROM employees WHERE salary > 100000;',
-    database: 'hr_production',
-    timestamp: '2026-08-15 19:22',
-    rows: 12,
-    status: 'success',
-  },
-  {
-    id: 2,
-    query: 'Kitne patients abhi admitted hain ICU mein?',
-    sql: "SELECT COUNT(*) FROM patients WHERE ward = 'ICU' AND status = 'admitted';",
-    database: 'hospital_db',
-    timestamp: '2026-08-15 18:45',
-    rows: 3,
-    status: 'success',
-  },
-  {
-    id: 3,
-    query: 'Delete all records from users table',
-    sql: 'DELETE FROM users;',
-    database: 'main_db',
-    timestamp: '2026-08-15 17:30',
-    rows: 0,
-    status: 'blocked',
-  },
-  {
-    id: 4,
-    query: 'Show product inventory below reorder level',
-    sql: 'SELECT * FROM products WHERE quantity < reorder_level;',
-    database: 'inventory_db',
-    timestamp: '2026-08-15 16:10',
-    rows: 5,
-    status: 'success',
-  },
-  {
-    id: 5,
-    query: 'Monthly sales report for July 2026',
-    sql: "SELECT DATE(order_date) as date, SUM(total) as revenue FROM orders WHERE MONTH(order_date) = 7 AND YEAR(order_date) = 2026 GROUP BY DATE(order_date);",
-    database: 'sales_db',
-    timestamp: '2026-08-14 14:20',
-    rows: 31,
-    status: 'success',
-  },
-  {
-    id: 6,
-    query: 'Attendance report for engineering department this week',
-    sql: "SELECT e.name, a.date, a.check_in, a.check_out FROM attendance a JOIN employees e ON a.employee_id = e.id WHERE e.department = 'Engineering' AND a.date >= CURRENT_DATE - INTERVAL '7 days';",
-    database: 'hr_production',
-    timestamp: '2026-08-14 11:05',
-    rows: 28,
-    status: 'success',
-  },
-];
-
 export default function HistoryPage() {
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
+  const navigate               = useNavigate();
+  const [allRows, setAllRows]  = useState([]);
+  const [filter, setFilter]    = useState('all'); // 'all' | 'success' | 'blocked'
+  const [loading, setLoading]  = useState(true);
+  const [error, setError]      = useState(null);
 
-  const filtered = MOCK_HISTORY.filter(h => {
-    const matchSearch = h.query.toLowerCase().includes(search.toLowerCase()) ||
-      h.sql.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === 'all' || h.status === filter;
-    return matchSearch && matchFilter;
-  });
+  useEffect(() => {
+    getHistory()
+      .then((data) => { setAllRows(data); setLoading(false); })
+      .catch((e)   => { setError(e.message || 'Failed to load history'); setLoading(false); });
+  }, []);
+
+  const counts = {
+    all:     allRows.length,
+    success: allRows.filter((r) => r.status === 'success').length,
+    blocked: allRows.filter((r) => r.status === 'blocked').length,
+  };
+
+  const displayed = filter === 'all'     ? allRows
+                  : filter === 'success' ? allRows.filter((r) => r.status === 'success')
+                  : allRows.filter((r) => r.status === 'blocked');
+
+  const handleRowClick = useCallback((row) => {
+    if (row.status === 'blocked') return; // don't rerun blocked queries
+    sessionStorage.setItem('qm_rerun_query', row.query);
+    navigate('/workspace');
+  }, [navigate]);
+
+  const FILTERS = [
+    { key: 'all',     label: 'All' },
+    { key: 'success', label: 'Successful' },
+    { key: 'blocked', label: 'Blocked' },
+  ];
 
   return (
-    <div className="history-page">
-      <header className="history-page__header">
+    <div className="history-viewport">
+      <header className="history-header">
         <div>
-          <h1><History size={24} /> Query History</h1>
-          <p>Review your past queries and results</p>
+          <h2>Query History</h2>
+          <p>Previous natural-language queries — click to re-run</p>
         </div>
-        <div className="history-page__stats">
-          <div className="history-page__stat">
-            <span className="history-page__stat-value">{MOCK_HISTORY.length}</span>
-            <span className="history-page__stat-label">Total Queries</span>
-          </div>
-          <div className="history-page__stat">
-            <span className="history-page__stat-value">{MOCK_HISTORY.filter(h => h.status === 'success').length}</span>
-            <span className="history-page__stat-label">Successful</span>
-          </div>
-          <div className="history-page__stat">
-            <span className="history-page__stat-value">{MOCK_HISTORY.filter(h => h.status === 'blocked').length}</span>
-            <span className="history-page__stat-label">Blocked</span>
-          </div>
-        </div>
-      </header>
 
-      {/* Filters */}
-      <div className="history-page__filters">
-        <div className="history-page__search">
-          <Search size={16} />
-          <input
-            type="text"
-            className="input-field"
-            placeholder="Search queries..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="history-page__filter-group">
-          {['all', 'success', 'blocked'].map(f => (
+        {/* Filter tabs */}
+        <div className="history-filters">
+          {FILTERS.map((f) => (
             <button
-              key={f}
-              className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setFilter(f)}
+              key={f.key}
+              type="button"
+              className={`history-filter-btn ${filter === f.key ? 'history-filter-btn--active' : ''}`}
+              onClick={() => setFilter(f.key)}
             >
-              {f === 'all' ? 'All' : f === 'success' ? '✓ Success' : '✗ Blocked'}
+              {f.label}
+              <span className={`history-filter-count ${filter === f.key ? 'history-filter-count--active' : ''}`}>
+                {counts[f.key]}
+              </span>
             </button>
           ))}
         </div>
-      </div>
+      </header>
 
-      {/* History List */}
-      <div className="history-page__list">
-        {filtered.map((item, index) => (
-          <div key={item.id} className="history-page__item card" style={{ animationDelay: `${index * 0.05}s` }}>
-            <div className="history-page__item-top">
-              <span className={`badge ${item.status === 'success' ? 'badge-success' : 'badge-danger'}`}>
-                {item.status === 'success' ? '✓ Success' : '✗ Blocked'}
-              </span>
-              <span className="history-page__item-db">
-                <Database size={12} /> {item.database}
-              </span>
-              <span className="history-page__item-time">
-                <Clock size={12} /> {item.timestamp}
-              </span>
-            </div>
-            <div className="history-page__item-query">{item.query}</div>
-            <pre className="history-page__item-sql"><code>{item.sql}</code></pre>
-            <div className="history-page__item-bottom">
-              <span className="history-page__item-rows">{item.rows} rows returned</span>
-              <div className="history-page__item-actions">
-                <button className="btn btn-ghost btn-sm"><Play size={14} /> Re-run</button>
-                <button className="btn btn-ghost btn-sm"><Trash2 size={14} /></button>
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="history-list">
+        {loading && <span style={{ color: 'rgba(224,224,230,0.32)', fontSize: 13 }}>Loading…</span>}
+        {error   && <span style={{ color: '#e74c3c', fontSize: 13 }}>{error}</span>}
 
-        {filtered.length === 0 && (
-          <div className="history-page__empty">
-            <Search size={48} />
-            <p>No queries found matching your search.</p>
-          </div>
+        {!loading && !error && displayed.length === 0 && (
+          <span style={{ color: 'rgba(224,224,230,0.22)', fontSize: 13, padding: '20px 0' }}>
+            No {filter !== 'all' ? filter : ''} queries found.
+          </span>
         )}
+
+        {!loading && !error && displayed.map((row, i) => (
+          <button
+            key={row.id}
+            type="button"
+            className={`history-row ${row.status === 'blocked' ? 'history-row--blocked' : ''}`}
+            style={{ animation: `fadeRow 0.35s ease-out ${i * 0.04}s both` }}
+            onClick={() => handleRowClick(row)}
+            title={row.status === 'blocked' ? 'Blocked — cannot re-run' : 'Click to re-run'}
+          >
+            {/* Type badge */}
+            <span className={`history-type-badge history-type-badge--${row.type}`}>
+              {row.type}
+            </span>
+
+            {/* Center */}
+            <div className="history-row-center">
+              <span className="history-query-text">{row.query}</span>
+              <span className="history-collection">{row.collection}</span>
+            </div>
+
+            {/* Right */}
+            <div className="history-row-right">
+              <span className="history-time">{row.time}</span>
+              <span className={`history-count history-count--${row.type}`}>{row.count}</span>
+            </div>
+
+            {/* Status chip */}
+            <span className={`history-status-chip history-status-chip--${row.status}`}>
+              {row.status}
+            </span>
+
+            {/* Arrow (only for non-blocked) */}
+            {row.status !== 'blocked' && (
+              <svg className="history-row-arrow" viewBox="0 0 11 11" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 5.5h7M6 2l3 3.5-3 3.5" />
+              </svg>
+            )}
+          </button>
+        ))}
       </div>
     </div>
   );
