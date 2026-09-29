@@ -1,0 +1,17 @@
+/* SignUpPage.css — extends LoginPage.css visual design */
+
+.signup-panel {
+  max-width: 820px;
+}
+
+.login-input--error {
+  border-color: rgba(192, 57, 43, 0.38) !important;
+  background: rgba(192, 57, 43, 0.04) !important;
+}
+
+.signup-field-error {
+  font-size: 11px;
+  color: rgba(231, 76, 60, 0.8);
+  margin-top: 5px;
+  animation: slideUp 0.2s ease-out both;
+}

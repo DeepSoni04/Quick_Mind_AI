@@ -1,0 +1,120 @@
+/* SavedQueriesPage.css — Screen 8: Saved Queries */
+
+.saved-viewport {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-page);
+  display: flex;
+  flex-direction: column;
+}
+
+.saved-header {
+  padding: 32px 36px 18px;
+  border-bottom: 1px solid var(--divider-line);
+  flex-shrink: 0;
+}
+
+.saved-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.018em;
+  margin-bottom: 5px;
+}
+
+.saved-header p {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 300;
+}
+
+.saved-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 36px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+/* Individual saved query card */
+.saved-card {
+  background: var(--bg-card-default);
+  border: 1px solid var(--border-card-default);
+  border-radius: 11px;
+  padding: 20px 22px;
+  cursor: pointer;
+  outline: none;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+}
+
+.saved-card:hover {
+  background: rgba(67, 47, 46, 0.88);
+  border-color: var(--border-card-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.30);
+}
+
+.saved-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.saved-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(196, 218, 232, 0.82);
+  transition: color 0.2s ease;
+  line-height: 1.3;
+}
+
+.saved-card:hover .saved-card-name {
+  color: var(--accent-butter);
+}
+
+.saved-card-arrow {
+  width: 14px;
+  height: 14px;
+  stroke: rgba(196, 218, 232, 0.16);
+  fill: none;
+  flex-shrink: 0;
+  transition: stroke 0.2s ease;
+}
+
+.saved-card:hover .saved-card-arrow {
+  stroke: rgba(254, 239, 184, 0.45);
+}
+
+.saved-card-query {
+  font-size: 13px;
+  color: rgba(196, 218, 232, 0.40);
+  font-style: italic;
+  font-weight: 300;
+  line-height: 1.55;
+  margin-bottom: 14px;
+  flex: 1;
+}
+
+.saved-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.saved-card-collection {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: rgba(196, 218, 232, 0.22);
+}
+
+.saved-card-date {
+  font-size: 11px;
+  color: rgba(196, 218, 232, 0.22);
+}
