@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { getSettings, updateSettings } from '../context/api';
 import './SettingsPage.css';
 
@@ -25,6 +27,8 @@ function Toggle({ checked, onChange }) {
  * Spec: Section 6 Screen 11
  */
 export default function SettingsPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [settings, setSettings] = useState({
     confirmUpdates: true,
     confirmDeletes: true,
@@ -125,19 +129,41 @@ export default function SettingsPage() {
 
           {/* ── Section 2: Account ──────────────────────────────── */}
           <div>
-            <span className="settings-section-label">Account</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="settings-section-label" style={{ marginBottom: 0 }}>Account</span>
+              <button
+                type="button"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent-butter)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  padding: '2px 6px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+                onClick={() => navigate('/profile')}
+              >
+                Manage Profile & Security →
+              </button>
+            </div>
             <div className="settings-card">
               <div className="settings-row">
                 <span className="settings-row-label">Name</span>
-                <span className="settings-mono-value">Heer Sachdev</span>
+                <span className="settings-mono-value">{user?.name || 'Administrator'}</span>
               </div>
               <div className="settings-row">
                 <span className="settings-row-label">Email</span>
-                <span className="settings-mono-value">heer@college.edu</span>
+                <span className="settings-mono-value">{user?.email || 'admin@querymind.ai'}</span>
               </div>
               <div className="settings-row">
                 <span className="settings-row-label">Role</span>
-                <span className="settings-role-badge">Analyst</span>
+                <span className="settings-role-badge" style={{ textTransform: 'capitalize' }}>
+                  {user?.role || 'Viewer'}
+                </span>
               </div>
             </div>
           </div>

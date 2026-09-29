@@ -12,6 +12,7 @@ import DashboardPage from './pages/DashboardPage';
 import DatabasesPage from './pages/DatabasesPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
+import ProfilePage from './pages/ProfilePage';
 
 function AppLayout() {
   return (
@@ -60,6 +61,9 @@ export default function App() {
 
               {/* Settings */}
               <Route path="/settings"       element={<SettingsPage />} />
+
+              {/* Profile */}
+              <Route path="/profile"        element={<ProfilePage />} />
             </Route>
 
             {/* Admin Panel — admin role only */}

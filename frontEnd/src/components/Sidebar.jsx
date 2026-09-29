@@ -16,6 +16,7 @@ export default function Sidebar() {
   const isConnectActive  = path.startsWith('/connections') || path.startsWith('/add-connection');
   const isAdminActive    = path.startsWith('/admin');
   const isSettingsActive = path.startsWith('/settings');
+  const isProfileActive  = path.startsWith('/profile');
 
   const handleLogout = () => {
     logout();
@@ -157,10 +158,11 @@ export default function Sidebar() {
         <div className="sidebar__user-section">
           <button
             type="button"
-            className="sidebar__user-btn"
-            onClick={() => navigate('/settings')}
-            title={`${user?.name || 'Account'} — Open Settings`}
+            className={`sidebar__user-btn ${isProfileActive ? 'sidebar__user-btn--active' : ''}`}
+            onClick={() => navigate('/profile')}
+            title={`${user?.name || 'Account'} — Open Profile`}
           >
+            {isProfileActive && <div className="sidebar__indicator" />}
             <span className="sidebar__user-avatar">{user?.avatar || '?'}</span>
             <span className="sidebar__user-label">Account</span>
           </button>

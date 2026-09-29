@@ -154,6 +154,21 @@
   color: rgba(196, 218, 232, 0.65);
 }
 
+.sidebar__user-btn--active {
+  color: var(--sidebar-active);
+}
+
+.sidebar__user-btn--active .sidebar__user-avatar {
+  border-color: var(--accent-butter);
+  background: rgba(254, 239, 184, 0.28);
+  box-shadow: 0 0 10px rgba(254, 239, 184, 0.45);
+}
+
+.sidebar__user-btn--active .sidebar__user-label {
+  font-weight: 700;
+  color: var(--accent-butter);
+}
+
 .sidebar__user-avatar {
   width: 26px;
   height: 26px;
