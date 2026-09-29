@@ -1,133 +1,179 @@
-/* ===== Settings Page ===== */
-.settings-page {
-  margin-left: var(--sidebar-width);
-  padding: 28px;
-  min-height: 100vh;
-  transition: margin-left var(--transition-base);
-}
+/* SettingsPage.css — Screen 11 */
 
-.settings-page__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 28px;
-}
-
-.settings-page__header h1 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.settings-page__header p {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  margin-top: 4px;
-}
-
-/* Sections */
-.settings-page__sections {
+.settings-viewport {
+  width: 100%;
+  height: 100vh;
+  overflow-y: auto;
+  background-color: var(--bg-page);
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-width: 800px;
 }
 
-.settings-page__section-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-  color: var(--primary-400);
-}
-
-.settings-page__section-title h2 {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-/* Options */
-.settings-page__option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.settings-page__option:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.settings-page__option label {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: block;
-  margin-bottom: 2px;
-}
-
-.settings-page__option p {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-}
-
-.settings-page__select {
-  width: 200px;
-  background: var(--bg-input);
-  color: var(--text-primary);
-}
-
-.settings-page__number {
-  width: 100px;
-  text-align: center;
-}
-
-/* Toggle Switch */
-.settings-page__toggle {
-  width: 52px;
-  height: 28px;
-  border-radius: var(--radius-full);
-  background: rgba(100, 116, 139, 0.3);
-  position: relative;
-  transition: all var(--transition-base);
+.settings-header {
+  padding: 32px 36px 18px;
+  border-bottom: 1px solid var(--divider-line);
   flex-shrink: 0;
 }
 
-.settings-page__toggle--on {
-  background: var(--primary-600);
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+.settings-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.018em;
+  margin-bottom: 5px;
 }
 
-.settings-page__toggle-dot {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
+.settings-header p {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 300;
+}
+
+.settings-body {
+  padding: 28px 36px 48px;
+  max-width: 596px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  animation: slideUp 0.45s ease-out both;
+}
+
+.settings-section-label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(196, 218, 232, 0.28);
+  margin-bottom: 14px;
+  display: block;
+}
+
+.settings-card {
+  background: var(--bg-card-default);
+  border: 1px solid var(--border-card-default);
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 22px;
+  border-bottom: 1px solid rgba(196, 218, 232, 0.04);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 340px;
+}
+
+.settings-row-label {
+  font-size: 14px;
+  color: rgba(196, 218, 232, 0.72);
+  font-weight: 400;
+}
+
+.settings-row-hint {
+  font-size: 12px;
+  color: rgba(196, 218, 232, 0.26);
+  font-weight: 300;
+}
+
+/* Custom toggle: 40×22px sliding switch */
+.settings-toggle-track {
+  width: 40px;
   height: 22px;
+  border-radius: 11px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.3s ease, border 0.3s ease;
+  flex-shrink: 0;
+  border: 1px solid;
+  outline: none;
+  background: none;
+  padding: 0;
+}
+
+.settings-toggle-track--on {
+  background: rgba(254, 239, 184, 0.50);
+  border-color: rgba(254, 239, 184, 0.38);
+}
+
+.settings-toggle-track--off {
+  background: rgba(196, 218, 232, 0.08);
+  border-color: rgba(196, 218, 232, 0.12);
+}
+
+.settings-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: white;
-  transition: transform var(--transition-base);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  background: #c4dae8;
+  transition: left 0.3s ease;
 }
 
-.settings-page__toggle--on .settings-page__toggle-dot {
-  transform: translateX(24px);
+.settings-toggle-track--on .settings-toggle-thumb {
+  left: 20px;
+  background: #feefb8;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .settings-page {
-    margin-left: 0;
-    padding: 16px;
-  }
-  .settings-page__option {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
+.settings-toggle-track--off .settings-toggle-thumb {
+  left: 2px;
+}
+
+/* Select input */
+.settings-select {
+  background: rgba(196, 218, 232, 0.04);
+  border: 1px solid rgba(196, 218, 232, 0.09);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: rgba(196, 218, 232, 0.65);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.settings-select option {
+  background: #1e1413;
+}
+
+.settings-select:focus {
+  border-color: rgba(254, 239, 184, 0.28);
+}
+
+/* Account row mono values */
+.settings-mono-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: rgba(196, 218, 232, 0.40);
+}
+
+/* Role badge */
+.settings-role-badge {
+  background: var(--badge-role-bg);
+  border: 1px solid var(--badge-role-border);
+  color: var(--badge-role-text);
+  border-radius: 100px;
+  padding: 3px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* About footer text */
+.settings-about-footer {
+  font-size: 12px;
+  color: rgba(196, 218, 232, 0.22);
+  line-height: 1.65;
+  font-weight: 300;
 }

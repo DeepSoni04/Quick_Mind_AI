@@ -1,362 +1,490 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import AmbientCanvas from '../components/AmbientCanvas';
+import { submitQuery, addBlockedQuery } from '../context/api';
 import { useAuth } from '../context/AuthContext';
-import {
-  Send, Mic, MicOff, Sparkles, Copy, Check, Download,
-  ThumbsUp, ThumbsDown, RotateCcw, Database, Table2, ChevronDown
-} from 'lucide-react';
 import './ChatPage.css';
 
-// Mock response generator
-function generateMockResponse(query) {
-  const lower = query.toLowerCase();
-  if (lower.includes('employee') || lower.includes('staff') || lower.includes('karmachari')) {
-    return {
-      sql: `SELECT e.employee_id, e.first_name, e.last_name, d.department_name, e.salary\nFROM employees e\nJOIN departments d ON e.department_id = d.department_id\nORDER BY e.salary DESC\nLIMIT 10;`,
-      summary: 'Here are the top 10 employees by salary across all departments.',
-      table: {
-        headers: ['ID', 'First Name', 'Last Name', 'Department', 'Salary'],
-        rows: [
-          ['101', 'Rahul', 'Sharma', 'Engineering', '₹1,85,000'],
-          ['102', 'Priya', 'Patel', 'Marketing', '₹1,62,000'],
-          ['103', 'Amit', 'Gupta', 'Finance', '₹1,55,000'],
-          ['104', 'Sneha', 'Reddy', 'Engineering', '₹1,48,000'],
-          ['105', 'Vikram', 'Singh', 'HR', '₹1,35,000'],
-        ],
-      },
-      rowCount: 5,
-      executionTime: '0.042s',
-      database: 'hr_production',
-    };
-  }
-  if (lower.includes('patient') || lower.includes('hospital') || lower.includes('doctor')) {
-    return {
-      sql: `SELECT p.patient_id, p.patient_name, p.admission_date, w.ward_name, p.status\nFROM patients p\nJOIN wards w ON p.ward_id = w.ward_id\nWHERE p.status = 'admitted'\nORDER BY p.admission_date DESC;`,
-      summary: 'Currently 8 patients are admitted across 4 wards. ICU has the highest occupancy.',
-      table: {
-        headers: ['Patient ID', 'Name', 'Admission Date', 'Ward', 'Status'],
-        rows: [
-          ['P-2041', 'Arjun Mehta', '2026-08-14', 'ICU', 'Critical'],
-          ['P-2039', 'Kavita Joshi', '2026-08-13', 'General', 'Stable'],
-          ['P-2038', 'Rajesh Kumar', '2026-08-12', 'Surgical', 'Recovering'],
-          ['P-2035', 'Meera Iyer', '2026-08-10', 'Pediatrics', 'Stable'],
-        ],
-      },
-      rowCount: 4,
-      executionTime: '0.038s',
-      database: 'hospital_db',
-    };
-  }
-  if (lower.includes('stock') || lower.includes('inventory') || lower.includes('product')) {
-    return {
-      sql: `SELECT p.product_id, p.product_name, p.quantity, p.reorder_level,\n  CASE WHEN p.quantity <= p.reorder_level THEN 'Low Stock' ELSE 'OK' END AS status\nFROM products p\nORDER BY p.quantity ASC\nLIMIT 10;`,
-      summary: '3 products are below reorder level and need restocking immediately.',
-      table: {
-        headers: ['Product ID', 'Name', 'Qty', 'Reorder Level', 'Status'],
-        rows: [
-          ['SKU-001', 'Wireless Mouse', '5', '20', 'Low Stock'],
-          ['SKU-014', 'USB-C Cable', '8', '30', 'Low Stock'],
-          ['SKU-009', 'Monitor Stand', '12', '15', 'Low Stock'],
-          ['SKU-022', 'Keyboard', '45', '20', 'OK'],
-          ['SKU-031', 'Webcam HD', '62', '25', 'OK'],
-        ],
-      },
-      rowCount: 5,
-      executionTime: '0.029s',
-      database: 'inventory_db',
-    };
-  }
-  // Default
-  return {
-    sql: `SELECT *\nFROM information_schema.tables\nWHERE table_schema = 'public'\nORDER BY table_name;`,
-    summary: `I understood your query: "${query}". Here's what I found in the connected database.`,
-    table: {
-      headers: ['Table Name', 'Rows', 'Size', 'Last Updated'],
-      rows: [
-        ['users', '1,245', '2.4 MB', '2026-08-15'],
-        ['orders', '8,932', '12.1 MB', '2026-08-15'],
-        ['products', '456', '1.8 MB', '2026-08-14'],
-      ],
-    },
-    rowCount: 3,
-    executionTime: '0.015s',
-    database: 'main_db',
-  };
+/** Detect query type from natural language text */
+export function detectQueryType(query) {
+  const text  = (query || '').trim();
+  const lower = text.toLowerCase();
+  if (/^(delete|remove|erase|purge)\b/i.test(text))                                               return 'delete';
+  if (/^(change|update|set|modify)\b/i.test(text) || lower.includes("'s department") || lower.includes("'s name")) return 'update';
+  return 'select';
 }
 
-export default function ChatPage() {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState([
-    {
-      id: 'welcome',
-      type: 'bot',
-      text: `Hi ${user?.name || 'there'}! 👋 I'm QueryMind AI — your natural language database assistant.\n\nAsk me anything about your connected databases in English or Hinglish, and I'll generate the SQL for you.\n\nTry something like:\n• "Show me all employees with salary above 1 lakh"\n• "Kitne patients abhi admitted hain?"\n• "Which products are low on stock?"`,
-      timestamp: new Date(),
-    }
-  ]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [copiedId, setCopiedId] = useState(null);
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+const EXAMPLE_PILLS = [
+  { text: 'Which students have unpaid fees this semester?', type: 'select' },
+  { text: 'Show all students enrolled in Computer Science.', type: 'select' },
+  { text: "Change Rahul's department to Computer Science.",  type: 'update' },
+  { text: 'Delete all inactive student records.',            type: 'delete' },
+];
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+const STAGE_LABELS = [
+  'Understanding your question',
+  'Finding relevant data',
+  'Running database operation',
+  'Operation complete',
+];
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const userMsg = {
-      id: Date.now().toString(),
-      type: 'user',
-      text: input.trim(),
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setIsTyping(true);
+const NODE_DEFS = [
+  { key: 'user',     label: 'USER' },
+  { key: 'ai',       label: 'QUERYMIND AI' },
+  { key: 'database', label: 'DATABASE' },   // ← was MONGODB
+  { key: 'result',   label: 'RESULT' },
+];
 
-    // Simulate AI response
-    setTimeout(() => {
-      const result = generateMockResponse(userMsg.text);
-      const botMsg = {
-        id: (Date.now() + 1).toString(),
-        type: 'bot',
-        text: result.summary,
-        sql: result.sql,
-        table: result.table,
-        meta: {
-          rowCount: result.rowCount,
-          executionTime: result.executionTime,
-          database: result.database,
-        },
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, botMsg]);
-      setIsTyping(false);
-    }, 1500);
-  };
+/** Export rows to CSV and trigger browser download */
+function exportCSV(rows) {
+  if (!rows || rows.length === 0) return;
+  const headers = ['Student ID', 'Name', 'Program', 'Semester', 'Fee Amount', 'Due Date', 'Status'];
+  const keys    = ['id', 'name', 'program', 'semester', 'fee', 'dueDate', 'status'];
+  const escape  = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines   = [headers.map(escape).join(','), ...rows.map((r) => keys.map((k) => escape(r[k])).join(','))];
+  const blob    = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
+  a.href        = url;
+  a.download    = 'querymind-results.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Screen 2: Workspace ─────────────────────────────────────────────────────
+function WorkspaceScreen({ onRunQuery, initialText = '' }) {
+  const [queryText, setQueryText] = useState(initialText);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const textareaRef               = useRef(null);
+
+  useEffect(() => { if (initialText) textareaRef.current?.focus(); }, [initialText]);
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (queryText.trim()) onRunQuery(queryText); }
   };
 
-  const toggleVoice = () => {
-    if (isListening) {
-      setIsListening(false);
-      return;
-    }
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'en-IN';
-      recognition.interimResults = false;
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
-        setIsListening(false);
-      };
-      recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => setIsListening(false);
-      recognition.start();
-      setIsListening(true);
-    } else {
-      alert('Speech recognition is not supported in this browser.');
-    }
-  };
-
-  const copySQL = (sql, id) => {
-    navigator.clipboard.writeText(sql);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const quickQueries = [
-    'Show all employees with salary above 1 lakh',
-    'Kitne patients abhi admitted hain?',
-    'Which products are low on stock?',
-    'Show me today\'s sales summary',
-  ];
+  const hasText   = queryText.trim().length > 0;
+  const charCount = queryText.length;
+  const rimClass   = isFocused ? 'composer-rim--focused'   : isHovered ? 'composer-rim--hovered'   : 'composer-rim--default';
+  const innerClass = isFocused ? 'composer-inner--focused' : isHovered ? 'composer-inner--hovered' : 'composer-inner--default';
 
   return (
-    <div className="chat-page">
-      {/* Header */}
-      <header className="chat-page__header glass">
-        <div className="chat-page__header-left">
-          <Sparkles size={20} className="chat-page__sparkle" />
-          <div>
-            <h1>Query Chat</h1>
-            <p>Ask questions in English or Hinglish</p>
-          </div>
-        </div>
-        <div className="chat-page__header-right">
-          <div className="chat-page__db-indicator">
-            <Database size={14} />
-            <span>3 databases connected</span>
-            <span className="chat-page__db-dot" />
-          </div>
-        </div>
-      </header>
+    <div className="workspace-viewport">
+      <AmbientCanvas cursorInfluence={true} crimsonGlow={true} />
+      <div className="workspace-drift-orb" />
+      <div className="workspace-content">
+        <header className="workspace-header">
+          <span className="workspace-eyebrow">Student Database · MongoDB</span>
+          <h1 className="workspace-title">Ask your database anything.</h1>
+        </header>
 
-      {/* Messages */}
-      <div className="chat-page__messages">
-        {messages.length === 1 && (
-          <div className="chat-page__quick-queries animate-fade-in">
-            <p>Quick queries to try:</p>
-            <div className="chat-page__quick-grid">
-              {quickQueries.map((q, i) => (
-                <button key={i} className="chat-page__quick-btn" onClick={() => setInput(q)}>
-                  <Sparkles size={14} />
-                  {q}
-                </button>
-              ))}
+        <div className="composer-wrapper" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+          <div className={`composer-rim ${rimClass}`} />
+          <div className={`composer-inner ${innerClass}`}>
+            <textarea
+              ref={textareaRef}
+              className="composer-textarea"
+              rows={3}
+              placeholder="Which students have unpaid fees this semester?"
+              value={queryText}
+              onChange={(e) => setQueryText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+            />
+            <div className="composer-bottom">
+              <span className="composer-hint">
+                {hasText ? `${charCount} chars · Enter to run` : 'Enter to run · Shift+Enter for newline'}
+              </span>
+              <button
+                type="button"
+                className={`composer-run-btn ${hasText ? 'composer-run-btn--active' : 'composer-run-btn--inactive'}`}
+                disabled={!hasText}
+                onClick={() => onRunQuery(queryText)}
+              >
+                <span>Run Query</span>
+                <svg className="composer-run-icon" viewBox="0 0 12 12">
+                  <path d="M2 6h8M7 3l3 3-3 3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
             </div>
           </div>
-        )}
+        </div>
 
-        {messages.map((msg) => (
-          <div key={msg.id} className={`chat-page__msg chat-page__msg--${msg.type} animate-slide-up`}>
-            {msg.type === 'bot' && (
-              <div className="chat-page__msg-avatar">
-                <Sparkles size={16} />
-              </div>
-            )}
-            <div className="chat-page__msg-content">
-              <div className="chat-page__msg-text">{msg.text}</div>
-
-              {/* SQL Block */}
-              {msg.sql && (
-                <div className="chat-page__sql-block">
-                  <div className="chat-page__sql-header">
-                    <span>Generated SQL</span>
-                    <button onClick={() => copySQL(msg.sql, msg.id)} className="chat-page__sql-copy">
-                      {copiedId === msg.id ? <Check size={14} /> : <Copy size={14} />}
-                      {copiedId === msg.id ? 'Copied!' : 'Copy'}
-                    </button>
-                  </div>
-                  <pre className="chat-page__sql-code"><code>{msg.sql}</code></pre>
-                </div>
-              )}
-
-              {/* Result Table */}
-              {msg.table && (
-                <div className="chat-page__table-wrap">
-                  <div className="chat-page__table-header">
-                    <Table2 size={14} />
-                    <span>Query Results</span>
-                    {msg.meta && (
-                      <span className="chat-page__table-meta">
-                        {msg.meta.rowCount} rows · {msg.meta.executionTime} · {msg.meta.database}
-                      </span>
-                    )}
-                  </div>
-                  <div className="chat-page__table-scroll">
-                    <table className="chat-page__table">
-                      <thead>
-                        <tr>
-                          {msg.table.headers.map((h, i) => (
-                            <th key={i}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {msg.table.rows.map((row, ri) => (
-                          <tr key={ri}>
-                            {row.map((cell, ci) => (
-                              <td key={ci}>
-                                {cell === 'Low Stock' || cell === 'Critical' ? (
-                                  <span className="badge badge-danger">{cell}</span>
-                                ) : cell === 'Stable' || cell === 'OK' ? (
-                                  <span className="badge badge-success">{cell}</span>
-                                ) : cell === 'Recovering' ? (
-                                  <span className="badge badge-warning">{cell}</span>
-                                ) : (
-                                  cell
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              {msg.type === 'bot' && msg.sql && (
-                <div className="chat-page__msg-actions">
-                  <button className="btn btn-ghost btn-sm"><ThumbsUp size={14} /> Helpful</button>
-                  <button className="btn btn-ghost btn-sm"><ThumbsDown size={14} /> Not right</button>
-                  <button className="btn btn-ghost btn-sm"><RotateCcw size={14} /> Regenerate</button>
-                  <button className="btn btn-ghost btn-sm"><Download size={14} /> Export PDF</button>
-                </div>
-              )}
-
-              <div className="chat-page__msg-time">
-                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            </div>
-
-            {msg.type === 'user' && (
-              <div className="chat-page__msg-avatar chat-page__msg-avatar--user">
-                {user?.avatar}
-              </div>
-            )}
-          </div>
-        ))}
-
-        {isTyping && (
-          <div className="chat-page__msg chat-page__msg--bot animate-fade-in">
-            <div className="chat-page__msg-avatar"><Sparkles size={16} /></div>
-            <div className="chat-page__msg-content">
-              <div className="chat-page__typing">
-                <span /><span /><span />
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input Area */}
-      <div className="chat-page__input-area glass">
-        <div className="chat-page__input-wrap">
-          <textarea
-            ref={inputRef}
-            className="chat-page__input"
-            placeholder="Ask a question in English or Hinglish..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={1}
-          />
-          <div className="chat-page__input-actions">
-            <button
-              className={`btn btn-icon btn-ghost chat-page__mic ${isListening ? 'chat-page__mic--active' : ''}`}
-              onClick={toggleVoice}
-              title={isListening ? 'Stop listening' : 'Voice input'}
-            >
-              {isListening ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
-            <button
-              className="btn btn-icon btn-primary chat-page__send"
-              onClick={handleSend}
-              disabled={!input.trim()}
-              title="Send query"
-            >
-              <Send size={18} />
-            </button>
+        <div className="example-pills-container">
+          <span className="example-pills-label">Try an example</span>
+          <div className="example-pills-row">
+            {EXAMPLE_PILLS.map((pill, i) => (
+              <button key={i} type="button" className="example-pill"
+                onClick={() => { setQueryText(pill.text); textareaRef.current?.focus(); }}>
+                <span className={`example-pill-dot example-pill-dot--${pill.type}`} />
+                <span>{pill.text}</span>
+              </button>
+            ))}
           </div>
         </div>
-        <p className="chat-page__disclaimer">
-          QueryMind AI generates SQL from your questions. Always review the SQL before executing on production databases.
-        </p>
       </div>
     </div>
   );
+}
+
+// ─── Screen 3: Processing ─────────────────────────────────────────────────────
+function ProcessingScreen({ query, queryType, onComplete }) {
+  const [stage, setStage]       = useState(0);
+  const [complete, setComplete] = useState(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setStage(1), 1500);
+    const t2 = setTimeout(() => setStage(2), 3000);
+    const t3 = setTimeout(() => { setStage(3); setComplete(true); }, 4500);
+    const t4 = setTimeout(() => onComplete(queryType), 5200);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const stageLabel = complete ? STAGE_LABELS[3] : STAGE_LABELS[stage];
+
+  return (
+    <div className="processing-viewport">
+      <div className="processing-ambient-overlay" />
+      <div className="processing-header">
+        <span className="processing-eyebrow">Processing</span>
+        <span className="processing-query">{query}</span>
+      </div>
+
+      <div className="processing-nodes-container">
+        {NODE_DEFS.map((node, i) => {
+          const isUser    = i === 0;
+          const isActive  = !isUser && stage >= i;
+          const isDone    = complete && i === 3;
+          const showPings = isActive && !complete && i < 3;
+
+          return (
+            <div key={node.key}>
+              <div className={`processing-node-card ${isUser ? 'processing-node-card--user' : isActive ? 'processing-node-card--active' : 'processing-node-card--inactive'}`}>
+                <div className={`processing-node-dot ${isUser ? 'processing-node-dot--user' : isActive ? 'processing-node-dot--active' : 'processing-node-dot--inactive'}`} />
+                <span className={`processing-node-label ${isUser ? 'processing-node-label--user' : isActive ? 'processing-node-label--active' : 'processing-node-label--inactive'}`}>
+                  {node.label}
+                </span>
+                {showPings && (
+                  <div className="processing-pings-wrapper">
+                    {[0, 0.22, 0.44].map((d, idx) => (
+                      <div key={idx} className="processing-ping-dot" style={{ animationDelay: `${d}s` }} />
+                    ))}
+                  </div>
+                )}
+                {isDone && (
+                  <svg className="processing-check-icon" viewBox="0 0 15 15">
+                    <path d="M2 7l4 4 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+
+              {i < NODE_DEFS.length - 1 && (
+                <div className="processing-connector">
+                  <div className={`processing-connector-line ${stage > i ? 'processing-connector-line--past' : 'processing-connector-line--future'}`} />
+                  {stage === i && !complete && (
+                    <div className={`processing-flowing-dot ${i === 0 ? 'processing-flowing-dot--crimson' : 'processing-flowing-dot--blue'}`} />
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div key={stageLabel} className={`processing-stage-label ${complete ? 'processing-stage-label--complete' : ''}`}>
+        {stageLabel}
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen 4: Result ────────────────────────────────────────────────────────
+function ResultScreen({ query, data, onNewQuery, onRegenerate, userRole }) {
+  const rows = data?.data || [];
+
+  return (
+    <div className="result-viewport">
+      <header className="result-header">
+        <div className="result-header-left">
+          <div className="result-status-row">
+            <div className="result-status-dot" />
+            <span className="result-status-text">{rows.length} records found</span>
+          </div>
+          <span className="result-query-text">{query}</span>
+        </div>
+        <div className="result-header-actions">
+          {/* Regenerate — available to all roles for select results */}
+          <button type="button" className="btn-regenerate" onClick={onRegenerate}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 6.5A4.5 4.5 0 0 1 6.5 2" />
+              <path d="M11 6.5A4.5 4.5 0 0 1 6.5 11" />
+              <polyline points="2 3.5 2 6.5 5 6.5" />
+              <polyline points="11 9.5 11 6.5 8 6.5" />
+            </svg>
+            Regenerate
+          </button>
+
+          <button type="button" className="btn-new-query" onClick={onNewQuery}>New Query</button>
+
+          {/* Export CSV — only for SELECT results (read-only) */}
+          <button type="button" className="btn-export-csv" onClick={() => exportCSV(rows)}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6.5 1v8M3.5 6l3 3 3-3M1 10v1.5a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5V10" />
+            </svg>
+            Export CSV
+          </button>
+        </div>
+      </header>
+
+      <div className="result-table-container">
+        <table className="result-table">
+          <thead>
+            <tr>
+              {['Student ID', 'Name', 'Program', 'Semester', 'Fee Amount', 'Due Date', 'Status'].map((h) => (
+                <th key={h} className="result-th">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.id} className="result-row" style={{ animation: `fadeRow 0.38s ease-out ${i * 0.04}s both` }}>
+                <td className="result-td result-td--id">{row.id}</td>
+                <td className="result-td result-td--name">{row.name}</td>
+                <td className="result-td result-td--program">{row.program}</td>
+                <td className="result-td result-td--semester">{row.semester}</td>
+                <td className="result-td result-td--fee">{row.fee}</td>
+                <td className="result-td result-td--date">{row.dueDate}</td>
+                <td className="result-td">
+                  <span className={`status-badge status-badge--${row.status.toLowerCase()}`}>{row.status}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen: Blocked Query (viewer tried UPDATE/DELETE) ───────────────────────
+function BlockedQueryScreen({ query, queryType, onNewQuery }) {
+  return (
+    <div className="action-viewport">
+      <div className="blocked-content" style={{ animation: 'slideUp 0.45s ease-out both' }}>
+        <div className="blocked-icon-ring">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="rgba(231,76,60,0.85)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="7" x2="12" y2="13" />
+            <circle cx="12" cy="16.5" r="0.75" fill="rgba(231,76,60,0.85)" stroke="none" />
+          </svg>
+        </div>
+        <div className="blocked-title">Permission Denied</div>
+        <div className="blocked-subtitle">
+          Your role (<strong>Viewer</strong>) does not allow{' '}
+          <span className="blocked-type">{queryType.toUpperCase()}</span> operations.
+        </div>
+        <div className="blocked-query">{query}</div>
+        <p className="blocked-hint">
+          Contact your administrator to request Analyst or Admin access if you need to modify data.
+        </p>
+        <button type="button" className="btn-success-new-query" onClick={onNewQuery}>
+          New Query
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen 5: Update Preview ─────────────────────────────────────────────────
+function UpdatePreviewScreen({ query, data, onNewQuery, onCancel }) {
+  const [execState, setExecState] = useState('idle');
+  const rec = data?.record || {};
+
+  if (execState === 'done') {
+    return (
+      <div className="action-viewport">
+        <div className="action-success-view">
+          <div className="success-circle">
+            <svg className="success-check-svg" viewBox="0 0 24 24"><path d="M4 10l5 5 8-8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </div>
+          <div className="success-title">Change completed</div>
+          <div className="success-subtitle">1 record updated</div>
+          <button type="button" className="btn-success-new-query" onClick={onNewQuery}>New Query</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="action-viewport">
+      <div className="action-content">
+        <div className="action-header">
+          <span className="action-eyebrow--update">Update Record</span>
+          <p className="action-query">{query}</p>
+        </div>
+        <div className="action-card action-card--update">
+          <div className="action-card-header">
+            <span className="action-card-title">{rec.name || 'Rahul Mehta'}</span>
+            <span className="action-card-id">{rec.id || 'STU-2024-023'}</span>
+          </div>
+          <div className="action-card-body">
+            <span className="action-section-label">{rec.field || 'Department'}</span>
+            <div className="diff-row">
+              <span className="diff-val-before">{rec.before || 'Information Technology'}</span>
+              <svg className="diff-arrow" viewBox="0 0 20 10"><path d="M0 5h17M13 1l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <span className="diff-val-after">{rec.after || 'Computer Science'}</span>
+            </div>
+          </div>
+          <div className="action-card-footer">This will modify {rec.affectedCount || 1} record.</div>
+        </div>
+        <div className="action-buttons-row">
+          <button type="button" className="btn-cancel" onClick={onCancel}>Cancel</button>
+          <button type="button"
+            className={`btn-confirm-action ${execState === 'executing' ? 'btn-confirm-action--updating' : 'btn-confirm-action--update'}`}
+            onClick={() => { setExecState('executing'); setTimeout(() => setExecState('done'), 1800); }}
+            disabled={execState === 'executing'}
+          >
+            {execState === 'executing' ? <><div className="spinner-update" /><span>Executing change…</span></> : 'Confirm Change'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen 6: Delete Confirm ─────────────────────────────────────────────────
+function DeleteConfirmScreen({ query, data, onNewQuery, onCancel }) {
+  const [execState, setExecState] = useState('idle');
+  const w = data?.warning || {};
+  const count = w.affectedCount || 126;
+
+  if (execState === 'done') {
+    return (
+      <div className="action-viewport">
+        <div className="action-success-view">
+          <div className="success-circle">
+            <svg className="success-check-svg" viewBox="0 0 24 24"><path d="M4 10l5 5 8-8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </div>
+          <div className="success-title">Operation completed</div>
+          <div className="success-subtitle">{count} records deleted</div>
+          <button type="button" className="btn-success-new-query" onClick={onNewQuery}>New Query</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="action-viewport">
+      <div className="action-content">
+        <div className="action-header">
+          <div className="action-header--delete">
+            <div className="action-warning-dot" />
+            <span className="action-eyebrow--delete">Destructive Action</span>
+          </div>
+          <p className="action-query">{query}</p>
+        </div>
+        <div className="action-card action-card--delete">
+          <div className="action-card-header">
+            <div className="action-card-title--delete">This will permanently delete <span className="action-highlight-red">{count} records</span>.</div>
+            <span className="action-card-subtitle">This action cannot be undone.</span>
+          </div>
+          <div className="action-card-body" style={{ gap: 0 }}>
+            {[
+              { label: 'Collection', value: w.collection || 'students' },
+              { label: 'Condition', value: w.condition || 'status = inactive' },
+              { label: 'Records affected', value: String(count), red: true },
+            ].map((row) => (
+              <div key={row.label} className="delete-info-row">
+                <span className="delete-info-label">{row.label}</span>
+                <span className={`delete-info-value ${row.red ? 'delete-info-value--red' : ''}`}>{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="action-buttons-row">
+          <button type="button" className="btn-cancel" onClick={onCancel}>Cancel</button>
+          <button type="button"
+            className={`btn-confirm-action ${execState === 'deleting' ? 'btn-confirm-action--deleting' : 'btn-confirm-action--delete'}`}
+            onClick={() => { setExecState('deleting'); setTimeout(() => setExecState('done'), 2100); }}
+            disabled={execState === 'deleting'}
+          >
+            {execState === 'deleting' ? <><div className="spinner-delete" /><span>Deleting…</span></> : `Delete ${count} Records`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main ChatPage ─────────────────────────────────────────────────────────────
+export default function ChatPage({ view = 'workspace' }) {
+  const { user }    = useAuth();
+  const role        = user?.role || 'viewer';
+
+  const [activeQuery,  setActiveQuery]  = useState('');
+  const [detectedType, setDetectedType] = useState('select');
+  const [queryResult,  setQueryResult]  = useState(null);
+  const [currentView,  setCurrentView]  = useState(view);
+  const [initialText,  setInitialText]  = useState(() => {
+    // Check if history page sent a re-run query
+    const stored = sessionStorage.getItem('qm_rerun_query');
+    if (stored) { sessionStorage.removeItem('qm_rerun_query'); return stored; }
+    return '';
+  });
+
+  useEffect(() => { setCurrentView(view); }, [view]);
+
+  const handleRunQuery = useCallback(async (text) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const qType = detectQueryType(trimmed);
+    setActiveQuery(trimmed);
+    setDetectedType(qType);
+    setInitialText('');
+
+    // Viewer permission check
+    if (role === 'viewer' && qType !== 'select') {
+      addBlockedQuery(trimmed, qType, user?.name || 'Viewer');
+      setCurrentView('blocked');
+      return;
+    }
+
+    setCurrentView('processing');
+    try {
+      const res = await submitQuery(trimmed, { name: user?.name });
+      setQueryResult(res);
+    } catch (err) {
+      console.error('Query error:', err);
+    }
+  }, [role, user]);
+
+  const handleProcessingComplete = useCallback((qType) => {
+    setCurrentView(qType === 'update' ? 'update-preview' : qType === 'delete' ? 'delete-confirm' : 'result');
+  }, []);
+
+  const handleNewQuery   = useCallback(() => { setCurrentView('workspace'); setActiveQuery(''); setQueryResult(null); }, []);
+  const handleCancel     = useCallback(() => { setCurrentView('workspace'); }, []);
+  const handleRegenerate = useCallback(async () => {
+    if (!activeQuery) return;
+    setCurrentView('processing');
+    try {
+      const res = await submitQuery(activeQuery, { name: user?.name });
+      setQueryResult(res);
+    } catch (err) {
+      console.error('Regenerate error:', err);
+    }
+  }, [activeQuery, user]);
+
+  if (currentView === 'workspace') return <WorkspaceScreen onRunQuery={handleRunQuery} initialText={initialText} />;
+  if (currentView === 'processing') return <ProcessingScreen query={activeQuery} queryType={detectedType} onComplete={handleProcessingComplete} />;
+  if (currentView === 'result')     return <ResultScreen query={activeQuery} data={queryResult} onNewQuery={handleNewQuery} onRegenerate={handleRegenerate} userRole={role} />;
+  if (currentView === 'blocked')    return <BlockedQueryScreen query={activeQuery} queryType={detectedType} onNewQuery={handleNewQuery} />;
+  if (currentView === 'update-preview') return <UpdatePreviewScreen query={activeQuery} data={queryResult} onNewQuery={handleNewQuery} onCancel={handleCancel} />;
+  if (currentView === 'delete-confirm') return <DeleteConfirmScreen query={activeQuery} data={queryResult} onNewQuery={handleNewQuery} onCancel={handleCancel} />;
+
+  return <WorkspaceScreen onRunQuery={handleRunQuery} initialText={initialText} />;
 }
