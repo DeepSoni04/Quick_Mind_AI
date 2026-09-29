@@ -234,3 +234,54 @@
   font-weight: 600;
   color: var(--text-secondary);
 }
+
+
+/* ==========================================================================
+   Auth Pages Mobile Responsiveness (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .login-viewport {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow-y: auto !important;
+    padding: 24px 14px !important;
+    justify-content: flex-start !important;
+  }
+
+  .login-panel {
+    grid-template-columns: 1fr !important;
+    max-width: 420px !important;
+    margin: auto !important;
+  }
+
+  .login-branding {
+    padding: 24px 20px 16px !important;
+    text-align: center !important;
+    align-items: center !important;
+    border-bottom: 1px solid var(--divider-line) !important;
+  }
+
+  .login-heading {
+    font-size: 26px !important;
+  }
+
+  .login-tagline {
+    font-size: 13px !important;
+    max-width: 100% !important;
+    margin-bottom: 10px !important;
+  }
+
+  .login-bullets {
+    display: none !important;
+  }
+
+  .login-form-pane {
+    border-left: none !important;
+    padding: 24px 20px !important;
+  }
+
+  .signup-panel {
+    max-width: 460px !important;
+    margin: auto !important;
+  }
+}

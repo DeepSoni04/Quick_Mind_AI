@@ -179,3 +179,32 @@
   line-height: 1.65;
   font-weight: 600;
 }
+
+
+/* ==========================================================================
+   Settings Mobile Responsiveness (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .settings-viewport {
+    height: 100% !important;
+    min-height: calc(100dvh - 60px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .settings-header {
+    padding: 18px 16px 12px !important;
+  }
+
+  .settings-body {
+    padding: 16px 14px 36px !important;
+    max-width: 100% !important;
+    gap: 20px !important;
+  }
+
+  .settings-row {
+    padding: 12px 14px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+}

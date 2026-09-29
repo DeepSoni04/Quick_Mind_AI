@@ -1,7 +1,7 @@
 /* Sidebar.css — Spec: Section 6 "Sidebar" */
 
 .sidebar {
-  width: 64px;
+  width: 76px;
   height: 100vh;
   background-color: var(--bg-sidebar);
   border-right: 1px solid var(--divider-line);
@@ -58,7 +58,7 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 13px 0;
+  padding: 10px 4px;
   background: none;
   border: none;
   cursor: pointer;
@@ -92,12 +92,18 @@
 }
 
 .sidebar__item-label {
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.15;
   font-family: var(--font-sans);
+  text-align: center;
+  max-width: 68px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 2px;
 }
 
 .sidebar__item--active .sidebar__item-label {
@@ -171,12 +177,18 @@
 }
 
 .sidebar__user-label {
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.15;
   font-family: var(--font-sans);
+  text-align: center;
+  max-width: 68px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 2px;
 }
 
 /* Logout button — small, understated, below avatar */
@@ -210,4 +222,116 @@
   stroke: currentColor;
   fill: none;
   stroke-width: 1.4;
+}
+
+
+/* ==========================================================================
+   Mobile Bottom Navigation Bar (Screens <= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    height: 60px !important;
+    flex-direction: row !important;
+    padding: 0 !important;
+    border-right: none !important;
+    border-top: 1px solid var(--divider-line) !important;
+    background-color: rgba(30, 20, 19, 0.96) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    z-index: 1000 !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4) !important;
+    align-items: center !important;
+  }
+
+  .sidebar__brand {
+    display: none !important;
+  }
+
+  .sidebar__nav {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-around !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .sidebar__item-wrapper {
+    flex: 1 !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .sidebar__item-wrapper--bottom {
+    margin-top: 0 !important;
+  }
+
+  .sidebar__item {
+    height: 100% !important;
+    padding: 6px 2px !important;
+    gap: 3px !important;
+    justify-content: center !important;
+  }
+
+  .sidebar__item-icon svg {
+    width: 19px !important;
+    height: 19px !important;
+  }
+
+  .sidebar__item-label {
+    font-size: 8.5px !important;
+    letter-spacing: 0 !important;
+    max-width: 52px !important;
+  }
+
+  .sidebar__indicator {
+    top: 0 !important;
+    bottom: auto !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 22px !important;
+    height: 2.5px !important;
+    border-radius: 0 0 2px 2px !important;
+  }
+
+  .sidebar__user-section {
+    flex-direction: row !important;
+    border-top: none !important;
+    padding-top: 0 !important;
+    gap: 0 !important;
+    width: auto !important;
+    height: 100% !important;
+    flex: 1 !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .sidebar__user-btn {
+    height: 100% !important;
+    padding: 6px 2px !important;
+    gap: 3px !important;
+    justify-content: center !important;
+  }
+
+  .sidebar__user-avatar {
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 8.5px !important;
+  }
+
+  .sidebar__user-label {
+    font-size: 8.5px !important;
+    letter-spacing: 0 !important;
+    max-width: 50px !important;
+  }
+
+  .sidebar__logout-btn {
+    display: none !important;
+  }
 }

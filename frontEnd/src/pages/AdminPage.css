@@ -516,3 +516,60 @@
   border: 1px solid rgba(61, 184, 122, 0.16);
   color: rgba(61, 184, 122, 0.65);
 }
+
+
+/* ==========================================================================
+   Admin Page Mobile Responsiveness (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .admin-page {
+    height: 100% !important;
+    min-height: calc(100dvh - 60px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .admin-page__header {
+    padding: 18px 16px 12px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .admin-page__stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .admin-page__tabs {
+    padding: 0 14px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 14px !important;
+  }
+
+  .admin-page__tab-btn {
+    white-space: nowrap !important;
+    padding: 12px 0 !important;
+  }
+
+  .admin-page__body {
+    padding: 16px 14px 36px !important;
+  }
+
+  .admin-page__table-wrapper {
+    overflow-x: auto !important;
+    width: 100% !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .admin-page__table {
+    min-width: 540px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-page__stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

@@ -318,3 +318,50 @@ th, [class*="-th"] {
   font-weight: 700 !important;
   color: rgba(220, 238, 252, 0.92) !important;
 }
+
+
+/* ---------- App Shell & Responsive Layout ---------- */
+.app-shell {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-page);
+  position: relative;
+}
+
+.app-main {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  html, body {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #root {
+    overflow: auto;
+  }
+
+  .app-shell {
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app-main {
+    flex: 1;
+    width: 100%;
+    height: calc(100% - 60px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 60px;
+  }
+}

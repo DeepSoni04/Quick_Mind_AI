@@ -472,3 +472,66 @@
   border-top-color: rgba(196, 218, 232, 0.65);
   animation: spinSlow 0.85s linear infinite;
 }
+
+
+/* ==========================================================================
+   Databases Mobile Responsiveness (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .databases-viewport {
+    height: 100% !important;
+    min-height: calc(100dvh - 60px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .databases-header {
+    padding: 18px 16px 12px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .databases-header-actions,
+  .btn-add-connection {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .databases-body {
+    padding: 16px 14px 36px !important;
+  }
+
+  .conn-card-header {
+    padding: 16px 14px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .conn-card-header > div:last-child {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+  }
+
+  .conn-stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .conn-manage-panel {
+    flex-direction: column !important;
+    padding: 14px 16px !important;
+  }
+
+  .btn-sync,
+  .btn-disconnect {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .add-conn-form {
+    max-width: 100% !important;
+  }
+}

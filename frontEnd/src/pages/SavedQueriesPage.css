@@ -120,3 +120,33 @@
   font-weight: 600;
   color: rgba(216, 235, 248, 0.78);
 }
+
+
+/* ==========================================================================
+   Saved Queries Mobile Responsiveness (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .saved-viewport {
+    height: 100% !important;
+    min-height: calc(100dvh - 60px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .saved-header {
+    padding: 18px 16px 12px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  .saved-grid {
+    padding: 16px 14px 36px !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .saved-card {
+    padding: 16px !important;
+  }
+}

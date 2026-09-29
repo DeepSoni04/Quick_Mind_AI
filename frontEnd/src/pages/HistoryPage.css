@@ -238,3 +238,46 @@
   background: none;
   border-color: transparent;
 }
+
+
+/* ==========================================================================
+   History Page Mobile Responsiveness (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .history-viewport {
+    height: 100% !important;
+    min-height: calc(100dvh - 60px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .history-header {
+    padding: 18px 16px 12px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .history-list {
+    padding: 16px 14px 36px !important;
+  }
+
+  .history-row {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .history-row-center {
+    width: calc(100% - 64px) !important;
+  }
+
+  .history-row-right {
+    width: 100% !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding-top: 6px !important;
+    border-top: 1px solid rgba(196, 218, 232, 0.05) !important;
+  }
+}
