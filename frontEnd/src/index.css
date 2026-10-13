@@ -1,0 +1,372 @@
+/* ===== QueryMind AI — Global Design System ===== */
+@import url('https://fonts.googleapis.com/css2?family=Oxygen:wght@300;400;700&family=Oxygen+Mono&display=swap');
+
+/* ---------- Design System Variables ---------- */
+:root {
+  /* Fonts */
+  --font-sans: 'Oxygen', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Oxygen Mono', monospace;
+
+  /*
+   * Palette:
+   *   Chocopie (dark brown) #432f2e  — main background, sidebar
+   *   Blue                  #c4dae8  — primary text, accent highlights, interactive elements
+   *   Butter                #feefb8  — secondary/warm accent, headings, CTAs
+   *
+   * Design intent:
+   *   • Chocopie brown is the canvas — deep, warm, premium dark
+   *   • Blue (#c4dae8) replaces the old ice-blue / light text role — it reads crisp against brown
+   *   • Butter (#feefb8) replaces the crimson accent role — it warms up the palette, draws the eye
+   *   • Status colors (green/amber/red) kept for semantic meaning, hue-shifted to harmonize
+   */
+
+  /* Backgrounds */
+  --bg-page:              #2a1d1c;
+  --bg-sidebar:           #1e1413;
+  --bg-card-default:      rgba(55, 37, 36, 0.70);
+  --bg-card-focused:      rgba(62, 43, 41, 0.97);
+  --border-card-default:  rgba(196, 218, 232, 0.06);
+  --border-card-hover:    rgba(196, 218, 232, 0.11);
+  --divider-line:         rgba(196, 218, 232, 0.06);
+  --divider-row:          rgba(196, 218, 232, 0.04);
+
+  /* Primary Accent — Butter / warm gold */
+  --accent-butter:           #feefb8;
+  --accent-butter-hover:     #fff3c5;
+  --btn-butter-bg:           rgba(254, 239, 184, 0.88);
+  --btn-butter-hover:        rgba(255, 243, 197, 1.0);
+  --btn-butter-border:       rgba(254, 239, 184, 0.45);
+  --btn-butter-glow:         0 0 22px rgba(254, 239, 184, 0.22);
+  --input-focus-border:      rgba(254, 239, 184, 0.35);
+  --input-focus-bg:          rgba(254, 239, 184, 0.04);
+  --input-focus-glow:        0 0 18px rgba(254, 239, 184, 0.08);
+  --surface-tint-butter:     rgba(254, 239, 184, 0.07);
+  --rim-butter-start:        rgba(254, 239, 184, 0.50);
+  --sidebar-active-glow:     0 0 8px rgba(254, 239, 184, 0.55);
+
+  /* Secondary Accent — Blue */
+  --accent-blue:             #c4dae8;
+  --node-blue-bg:            rgba(196, 218, 232, 0.08);
+  --node-blue-border:        rgba(196, 218, 232, 0.32);
+  --node-blue-glow:          0 0 22px rgba(196, 218, 232, 0.14);
+  --flow-particle-blue:      rgba(196, 218, 232, 1);
+  --ambient-overlay-blue:    rgba(196, 218, 232, 0.03);
+  --badge-select-bg:         rgba(196, 218, 232, 0.07);
+  --badge-select-border:     rgba(196, 218, 232, 0.16);
+  --badge-select-text:       rgba(216, 236, 250, 0.90);
+  --badge-role-bg:           rgba(196, 218, 232, 0.08);
+  --badge-role-border:       rgba(196, 218, 232, 0.20);
+  --badge-role-text:         rgba(216, 236, 250, 0.92);
+
+  /* Success Green — slightly desaturated/warmed to blend with brown bg */
+  --accent-green:            #3db87a;
+  --status-green-glow:       0 0 10px rgba(61, 184, 122, 0.55);
+  --banner-success-bg:       rgba(61, 184, 122, 0.07);
+  --banner-success-border:   rgba(61, 184, 122, 0.20);
+  --conn-card-border:        rgba(61, 184, 122, 0.16);
+  --btn-confirm-bg:          rgba(61, 184, 122, 0.11);
+  --btn-confirm-border:      rgba(61, 184, 122, 0.28);
+  --btn-confirm-text:        rgba(61, 184, 122, 0.88);
+
+  /* Danger Red — kept vivid for safety semantics */
+  --accent-red:              #c0392b;
+  --text-red:                #e05c4a;
+  --badge-danger-bg:         rgba(192, 57, 43, 0.12);
+  --badge-danger-border:     rgba(192, 57, 43, 0.22);
+  --btn-danger-bg:           rgba(192, 57, 43, 0.13);
+  --btn-danger-border:       rgba(192, 57, 43, 0.35);
+  --card-danger-border:      rgba(192, 57, 43, 0.20);
+  --status-red-glow:         0 0 10px rgba(192, 57, 43, 0.65);
+  --diff-before-bg:          rgba(192, 57, 43, 0.07);
+  --diff-before-border:      rgba(192, 57, 43, 0.14);
+  --banner-danger-bg:        rgba(192, 57, 43, 0.07);
+  --banner-danger-border:    rgba(192, 57, 43, 0.20);
+
+  /* Warning Amber — warmed to complement butter palette */
+  --accent-amber:            #e8a84a;
+  --badge-update-bg:         rgba(232, 168, 74, 0.08);
+  --badge-update-border:     rgba(232, 168, 74, 0.18);
+  --badge-update-text:       #f0b55e;
+  --badge-pending-bg:        rgba(232, 168, 74, 0.10);
+  --badge-pending-border:    rgba(232, 168, 74, 0.20);
+  --badge-pending-text:      #e8a84a;
+
+  /* Text Hierarchy — derived from Blue (#c4dae8) */
+  --text-primary:            #dbeafe;
+  --text-primary-alt:        #b8d0e0;
+  --text-body:               rgba(224, 238, 248, 0.94);
+  --text-secondary:          rgba(210, 230, 245, 0.88);
+  --text-secondary-dim:      rgba(196, 220, 238, 0.82);
+  --text-muted:              rgba(196, 220, 238, 0.76);
+  --text-muted-dim:          rgba(196, 218, 232, 0.68);
+  --text-very-muted:         rgba(196, 218, 232, 0.60);
+  --text-ultra-muted:        rgba(196, 218, 232, 0.52);
+  --sidebar-inactive:        rgba(210, 230, 245, 0.78);
+  --sidebar-active:          rgba(254, 239, 184, 0.95);
+}
+
+/* ---------- Global Reset & Body ---------- */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  background-color: var(--bg-page);
+  position: relative;
+}
+
+/* ---------- Typography Utilities ---------- */
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* ---------- Global Keyframe Animations ---------- */
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.07);
+    opacity: 0.85;
+  }
+}
+
+@keyframes drift {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(10px, -16px);
+  }
+  50% {
+    transform: translate(-6px, 12px);
+  }
+  75% {
+    transform: translate(14px, 6px);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeRow {
+  from {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pingSlow {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes flowDot {
+  0% {
+    transform: translateY(-18px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+}
+
+@keyframes successPop {
+  0% {
+    transform: scale(0.75);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.0);
+    opacity: 1;
+  }
+}
+
+@keyframes nodeActivate {
+  0% {
+    box-shadow: 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(196, 218, 232, 0.38), 0 0 56px rgba(196, 218, 232, 0.10);
+  }
+  100% {
+    box-shadow: 0 0 14px rgba(196, 218, 232, 0.20), 0 0 28px rgba(196, 218, 232, 0.05);
+  }
+}
+
+/* ---------- Custom Scrollbars ---------- */
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(196, 218, 232, 0.10);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(196, 218, 232, 0.20);
+}
+
+/* ==========================================================================
+   Small Text High-Visibility & Bold Design System
+   ========================================================================== */
+small,
+.small,
+.text-xs,
+.text-sm,
+caption,
+th,
+label {
+  font-weight: 700;
+  -webkit-font-smoothing: antialiased;
+}
+
+[class*="eyebrow"],
+[class*="-eyebrow"] {
+  font-weight: 700 !important;
+  color: rgba(216, 235, 248, 0.88) !important;
+  letter-spacing: 0.14em !important;
+}
+
+[class*="hint"],
+[class*="-hint"] {
+  font-weight: 600 !important;
+  color: rgba(216, 235, 248, 0.80) !important;
+}
+
+[class*="label"],
+[class*="-label"] {
+  font-weight: 700;
+}
+
+[class*="subtext"],
+[class*="-sub"],
+[class*="meta"],
+[class*="-meta"] {
+  font-weight: 600;
+  color: rgba(210, 230, 246, 0.84);
+}
+
+[class*="timestamp"],
+[class*="-time"] {
+  font-weight: 600;
+  color: rgba(206, 228, 245, 0.82);
+}
+
+th, [class*="-th"] {
+  font-weight: 700 !important;
+  color: rgba(220, 238, 252, 0.92) !important;
+}
+
+/* ---------- App Shell & Responsive Layout ---------- */
+.app-shell {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-page);
+  position: relative;
+}
+
+.app-main {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  html, body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    height: 100%;
+  }
+
+  #root {
+    overflow: hidden;
+    height: 100%;
+  }
+
+  .app-shell {
+    flex-direction: column;
+    height: 100dvh;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .app-main {
+    flex: 1;
+    width: 100%;
+    height: calc(100% - 60px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
+    padding: 0;
+  }
+}
