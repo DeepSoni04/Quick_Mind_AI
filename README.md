@@ -19,10 +19,7 @@ Quick_Mind_AI/
 │   ├── tests/            # Pytest test suite (37 unit & integration tests)
 │   └── requirements.txt  # Pinned backend dependencies
 ├── scripts/              # Demo database seeder scripts
-├── Dockerfile            # Multi-stage production container
-├── docker-compose.yml    # Full-stack local orchestration
-├── render.yaml           # Render blueprint specification
-└── .github/workflows/    # Automated CI/CD test pipelines
+└── render.yaml           # Render blueprint specification
 ```
 
 ---
@@ -91,15 +88,3 @@ This project includes a native `render.yaml` blueprint.
    - `MONGODB_URI`: Connection string for MongoDB Atlas.
    - `LLM_API_KEY`: Google Gemini API Key.
    - `ENCRYPTION_KEY`: A 32-byte Fernet key (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`).
-
-### AWS Deployment (ECS / EC2 / App Runner)
-A production multi-stage `Dockerfile` is provided.
-1. Build and push container to AWS ECR:
-   ```bash
-   aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account>.dkr.ecr.<region>.amazonaws.com
-   docker build -t querymind-backend .
-   docker tag querymind-backend:latest <account>.dkr.ecr.<region>.amazonaws.com/querymind-backend:latest
-   docker push <account>.dkr.ecr.<region>.amazonaws.com/querymind-backend:latest
-   ```
-2. Deploy onto AWS App Runner or ECS Fargate, specifying environment variables from `.env.example`.
-3. Deploy frontend onto AWS S3 + CloudFront or Amplify.
