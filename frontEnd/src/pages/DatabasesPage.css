@@ -112,10 +112,17 @@
 }
 
 .conn-status-text {
+<<<<<<< Updated upstream
   font-size: 11px;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: #3db87a;
+=======
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(61, 184, 122, 0.72);
+>>>>>>> Stashed changes
   font-weight: 700;
 }
 
@@ -128,8 +135,12 @@
 .conn-card-type {
   font-size: 12px;
   font-family: var(--font-mono);
+<<<<<<< Updated upstream
   font-weight: 600;
   color: rgba(216, 235, 248, 0.80);
+=======
+  color: rgba(196, 218, 232, 0.34);
+>>>>>>> Stashed changes
 }
 
 .btn-manage {
@@ -169,18 +180,30 @@
 }
 
 .conn-stat-label {
+<<<<<<< Updated upstream
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgba(216, 235, 248, 0.82);
   font-weight: 700;
+=======
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(196, 218, 232, 0.28);
+  font-weight: 400;
+>>>>>>> Stashed changes
 }
 
 .conn-stat-value {
   font-size: 13px;
   font-family: var(--font-mono);
+<<<<<<< Updated upstream
   font-weight: 600;
   color: rgba(216, 235, 248, 0.94);
+=======
+  color: rgba(196, 218, 232, 0.72);
+>>>>>>> Stashed changes
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -329,11 +352,19 @@
 }
 
 .add-conn-label {
+<<<<<<< Updated upstream
   font-size: 11px;
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: rgba(216, 235, 248, 0.88);
   font-weight: 700;
+=======
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: rgba(196, 218, 232, 0.38);
+  font-weight: 400;
+>>>>>>> Stashed changes
 }
 
 .add-conn-input {
@@ -471,6 +502,7 @@
   border: 1.5px solid rgba(196, 218, 232, 0.22);
   border-top-color: rgba(196, 218, 232, 0.65);
   animation: spinSlow 0.85s linear infinite;
+<<<<<<< Updated upstream
 }
 
 
@@ -534,4 +566,6 @@
   .add-conn-form {
     max-width: 100% !important;
   }
+=======
+>>>>>>> Stashed changes
 }

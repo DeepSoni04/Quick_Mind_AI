@@ -82,6 +82,7 @@
 
 .login-tagline {
   font-size: 14px;
+<<<<<<< Updated upstream
   color: rgba(216, 235, 248, 0.88);
   font-weight: 500;
   line-height: 1.65;
@@ -102,6 +103,28 @@
   gap: 10px;
 }
 
+=======
+  color: rgba(196, 218, 232, 0.50);
+  font-weight: 300;
+  line-height: 1.65;
+  max-width: 240px;
+  margin-bottom: 22px;
+}
+
+.login-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-bullet {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+>>>>>>> Stashed changes
 .login-bullet-dot {
   width: 4px;
   height: 4px;
@@ -112,8 +135,13 @@
 
 .login-bullet-text {
   font-size: 13px;
+<<<<<<< Updated upstream
   color: rgba(216, 235, 248, 0.85);
   font-weight: 600;
+=======
+  color: rgba(196, 218, 232, 0.38);
+  font-weight: 300;
+>>>>>>> Stashed changes
   line-height: 1.4;
 }
 
@@ -130,9 +158,15 @@
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+<<<<<<< Updated upstream
   color: rgba(216, 235, 248, 0.88);
   margin-bottom: 26px;
   font-weight: 700;
+=======
+  color: rgba(196, 218, 232, 0.30);
+  margin-bottom: 26px;
+  font-weight: 400;
+>>>>>>> Stashed changes
 }
 
 .login-form {
@@ -147,9 +181,15 @@
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+<<<<<<< Updated upstream
   color: rgba(216, 235, 248, 0.88);
   margin-bottom: 8px;
   font-weight: 700;
+=======
+  color: rgba(196, 218, 232, 0.40);
+  margin-bottom: 8px;
+  font-weight: 400;
+>>>>>>> Stashed changes
 }
 
 .login-input {
@@ -178,8 +218,12 @@
 
 .login-link {
   font-size: 12px;
+<<<<<<< Updated upstream
   font-weight: 600;
   color: rgba(254, 239, 184, 0.90);
+=======
+  color: rgba(254, 239, 184, 0.60);
+>>>>>>> Stashed changes
   text-decoration: none;
   font-family: var(--font-sans);
   transition: color 0.2s ease;
@@ -231,6 +275,7 @@
 
 .login-signup-text {
   font-size: 12px;
+<<<<<<< Updated upstream
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -284,4 +329,7 @@
     max-width: 460px !important;
     margin: auto !important;
   }
+=======
+  color: var(--text-muted);
+>>>>>>> Stashed changes
 }

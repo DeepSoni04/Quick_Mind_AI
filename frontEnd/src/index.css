@@ -53,10 +53,17 @@
   --ambient-overlay-blue:    rgba(196, 218, 232, 0.03);
   --badge-select-bg:         rgba(196, 218, 232, 0.07);
   --badge-select-border:     rgba(196, 218, 232, 0.16);
+<<<<<<< Updated upstream
   --badge-select-text:       rgba(216, 236, 250, 0.90);
   --badge-role-bg:           rgba(196, 218, 232, 0.08);
   --badge-role-border:       rgba(196, 218, 232, 0.20);
   --badge-role-text:         rgba(216, 236, 250, 0.92);
+=======
+  --badge-select-text:       rgba(196, 218, 232, 0.70);
+  --badge-role-bg:           rgba(196, 218, 232, 0.08);
+  --badge-role-border:       rgba(196, 218, 232, 0.20);
+  --badge-role-text:         rgba(196, 218, 232, 0.80);
+>>>>>>> Stashed changes
 
   /* Success Green — slightly desaturated/warmed to blend with brown bg */
   --accent-green:            #3db87a;
@@ -86,12 +93,17 @@
   --accent-amber:            #e8a84a;
   --badge-update-bg:         rgba(232, 168, 74, 0.08);
   --badge-update-border:     rgba(232, 168, 74, 0.18);
+<<<<<<< Updated upstream
   --badge-update-text:       #f0b55e;
+=======
+  --badge-update-text:       rgba(232, 168, 74, 0.72);
+>>>>>>> Stashed changes
   --badge-pending-bg:        rgba(232, 168, 74, 0.10);
   --badge-pending-border:    rgba(232, 168, 74, 0.20);
   --badge-pending-text:      #e8a84a;
 
   /* Text Hierarchy — derived from Blue (#c4dae8) */
+<<<<<<< Updated upstream
   --text-primary:            #dbeafe;
   --text-primary-alt:        #b8d0e0;
   --text-body:               rgba(224, 238, 248, 0.94);
@@ -102,6 +114,18 @@
   --text-very-muted:         rgba(196, 218, 232, 0.60);
   --text-ultra-muted:        rgba(196, 218, 232, 0.52);
   --sidebar-inactive:        rgba(210, 230, 245, 0.78);
+=======
+  --text-primary:            #c4dae8;
+  --text-primary-alt:        #b8d0e0;
+  --text-body:               rgba(196, 218, 232, 0.80);
+  --text-secondary:          rgba(196, 218, 232, 0.60);
+  --text-secondary-dim:      rgba(196, 218, 232, 0.46);
+  --text-muted:              rgba(196, 218, 232, 0.34);
+  --text-muted-dim:          rgba(196, 218, 232, 0.28);
+  --text-very-muted:         rgba(196, 218, 232, 0.22);
+  --text-ultra-muted:        rgba(196, 218, 232, 0.17);
+  --sidebar-inactive:        rgba(196, 218, 232, 0.30);
+>>>>>>> Stashed changes
   --sidebar-active:          rgba(254, 239, 184, 0.95);
 }
 
@@ -145,6 +169,7 @@ html, body {
   50% {
     transform: scale(1.07);
     opacity: 0.85;
+<<<<<<< Updated upstream
   }
 }
 
@@ -368,5 +393,127 @@ th, [class*="-th"] {
     -webkit-overflow-scrolling: touch;
     box-sizing: border-box;
     padding: 0;
+=======
+>>>>>>> Stashed changes
   }
+}
+
+@keyframes drift {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(10px, -16px);
+  }
+  50% {
+    transform: translate(-6px, 12px);
+  }
+  75% {
+    transform: translate(14px, 6px);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeRow {
+  from {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pingSlow {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes flowDot {
+  0% {
+    transform: translateY(-18px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+}
+
+@keyframes successPop {
+  0% {
+    transform: scale(0.75);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.0);
+    opacity: 1;
+  }
+}
+
+@keyframes nodeActivate {
+  0% {
+    box-shadow: 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(196, 218, 232, 0.38), 0 0 56px rgba(196, 218, 232, 0.10);
+  }
+  100% {
+    box-shadow: 0 0 14px rgba(196, 218, 232, 0.20), 0 0 28px rgba(196, 218, 232, 0.05);
+  }
+}
+
+/* ---------- Custom Scrollbars ---------- */
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(196, 218, 232, 0.10);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(196, 218, 232, 0.20);
 }

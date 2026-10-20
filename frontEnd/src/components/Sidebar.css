@@ -1,7 +1,11 @@
 /* Sidebar.css — Spec: Section 6 "Sidebar" */
 
 .sidebar {
+<<<<<<< Updated upstream
   width: 82px;
+=======
+  width: 64px;
+>>>>>>> Stashed changes
   height: 100vh;
   background-color: var(--bg-sidebar);
   border-right: 1px solid var(--divider-line);
@@ -58,7 +62,11 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
+<<<<<<< Updated upstream
   padding: 10px 2px;
+=======
+  padding: 13px 0;
+>>>>>>> Stashed changes
   background: none;
   border: none;
   cursor: pointer;
@@ -93,6 +101,7 @@
 
 .sidebar__item-label {
   font-size: 9px;
+<<<<<<< Updated upstream
   letter-spacing: 0.03em;
   text-transform: uppercase;
   font-weight: 700;
@@ -103,6 +112,13 @@
   white-space: nowrap;
   overflow: visible;
   padding: 0 1px;
+=======
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-weight: 400;
+  line-height: 1;
+  font-family: var(--font-sans);
+>>>>>>> Stashed changes
 }
 
 .sidebar__item--active .sidebar__item-label {
@@ -154,6 +170,7 @@
   color: rgba(196, 218, 232, 0.65);
 }
 
+<<<<<<< Updated upstream
 .sidebar__user-btn--active {
   color: var(--sidebar-active);
 }
@@ -169,10 +186,13 @@
   color: var(--accent-butter);
 }
 
+=======
+>>>>>>> Stashed changes
 .sidebar__user-avatar {
   width: 26px;
   height: 26px;
   border-radius: 50%;
+<<<<<<< Updated upstream
   background: rgba(254, 239, 184, 0.16);
   border: 1px solid rgba(254, 239, 184, 0.35);
   display: flex;
@@ -181,6 +201,16 @@
   font-size: 10px;
   font-weight: 700;
   color: rgba(254, 239, 184, 0.95);
+=======
+  background: rgba(254, 239, 184, 0.12);
+  border: 1px solid rgba(254, 239, 184, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(254, 239, 184, 0.80);
+>>>>>>> Stashed changes
   flex-shrink: 0;
   transition: border-color 0.2s, background 0.2s;
 }
@@ -192,6 +222,7 @@
 
 .sidebar__user-label {
   font-size: 9px;
+<<<<<<< Updated upstream
   letter-spacing: 0.03em;
   text-transform: uppercase;
   font-weight: 700;
@@ -202,6 +233,13 @@
   white-space: nowrap;
   overflow: visible;
   padding: 0 1px;
+=======
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-weight: 400;
+  line-height: 1;
+  font-family: var(--font-sans);
+>>>>>>> Stashed changes
 }
 
 /* Logout button — small, understated, below avatar */
@@ -216,9 +254,14 @@
   background: none;
   border: none;
   cursor: pointer;
+<<<<<<< Updated upstream
   color: rgba(240, 100, 85, 0.85);
   font-size: 10px;
   font-weight: 700;
+=======
+  color: rgba(192, 57, 43, 0.45);
+  font-size: 9px;
+>>>>>>> Stashed changes
   letter-spacing: 0.07em;
   text-transform: uppercase;
   font-family: var(--font-sans);
@@ -235,6 +278,7 @@
   stroke: currentColor;
   fill: none;
   stroke-width: 1.4;
+<<<<<<< Updated upstream
 }
 
 
@@ -347,4 +391,6 @@
   .sidebar__logout-btn {
     display: none !important;
   }
+=======
+>>>>>>> Stashed changes
 }

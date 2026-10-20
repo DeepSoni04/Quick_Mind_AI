@@ -12,6 +12,7 @@ import DashboardPage from './pages/DashboardPage';
 import DatabasesPage from './pages/DatabasesPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
+<<<<<<< Updated upstream
 import ProfilePage from './pages/ProfilePage';
 
 function AppLayout() {
@@ -19,6 +20,14 @@ function AppLayout() {
     <div className="app-shell">
       <Sidebar />
       <main className="app-main">
+=======
+
+function AppLayout() {
+  return (
+    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--bg-page)' }}>
+      <Sidebar />
+      <main style={{ flex: 1, height: '100%', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+>>>>>>> Stashed changes
         <Outlet />
       </main>
     </div>
@@ -61,9 +70,12 @@ export default function App() {
 
               {/* Settings */}
               <Route path="/settings"       element={<SettingsPage />} />
+<<<<<<< Updated upstream
 
               {/* Profile */}
               <Route path="/profile"        element={<ProfilePage />} />
+=======
+>>>>>>> Stashed changes
             </Route>
 
             {/* Admin Panel — admin role only */}

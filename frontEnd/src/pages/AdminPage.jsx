@@ -1,5 +1,10 @@
+<<<<<<< Updated upstream
 import { useState } from 'react';
 import { getMockUsers, setMockUsers } from '../context/AuthContext';
+=======
+import { useState, useEffect } from 'react';
+import { getAdminUsers, updateUserRole, resetUserPassword, deleteUser, getSecurityLogs } from '../context/api';
+>>>>>>> Stashed changes
 import './AdminPage.css';
 
 // Icons as inline SVGs to avoid any dependency issues
@@ -13,6 +18,7 @@ const IconTrash   = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="
 const IconAlert   = () => <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7.5 1L14 13H1z"/><line x1="7.5" y1="6" x2="7.5" y2="9"/><circle cx="7.5" cy="11" r="0.6" fill="currentColor" stroke="none"/></svg>;
 const IconPlus    = () => <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><line x1="7" y1="2" x2="7" y2="12"/><line x1="2" y1="7" x2="12" y2="7"/></svg>;
 const IconCheck   = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7l4 4 5-6"/></svg>;
+<<<<<<< Updated upstream
 
 const INITIAL_SECURITY_LOGS = [
   { id: 1, time: '19:22', event: 'Blocked destructive query: DROP TABLE',    user: 'Neel Shah',     severity: 'high' },
@@ -24,6 +30,11 @@ const INITIAL_SECURITY_LOGS = [
   { id: 7, time: '13:05', event: 'Password reset triggered',                  user: 'Heer Sachdev',  severity: 'low' },
 ];
 
+=======
+
+
+
+>>>>>>> Stashed changes
 const ROLES = ['admin', 'analyst', 'viewer'];
 
 function makeAvatar(name = '') {
@@ -33,9 +44,16 @@ function makeAvatar(name = '') {
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
+<<<<<<< Updated upstream
   const [users, setUsers]         = useState(() => getMockUsers().map((u) => ({ ...u, status: u.status || 'active' })));
   const [search, setSearch]       = useState('');
   const [securityLogs, setSecurityLogs] = useState(INITIAL_SECURITY_LOGS);
+=======
+  const [users, setUsers]         = useState([]);
+  const [search, setSearch]       = useState('');
+  const [securityLogs, setSecurityLogs] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+>>>>>>> Stashed changes
 
   // Edit state
   const [editingId, setEditingId] = useState(null);
@@ -49,6 +67,22 @@ export default function AdminPage() {
   // Reset password feedback
   const [resetDone, setResetDone] = useState({});
 
+<<<<<<< Updated upstream
+=======
+  // Load users and security logs on mount
+  useEffect(() => {
+    setLoadingUsers(true);
+    getAdminUsers()
+      .then((data) => setUsers(Array.isArray(data) ? data : []))
+      .catch(() => setUsers([]))
+      .finally(() => setLoadingUsers(false));
+
+    getSecurityLogs()
+      .then((data) => setSecurityLogs(Array.isArray(data) ? data : []))
+      .catch(() => setSecurityLogs([]));
+  }, []);
+
+>>>>>>> Stashed changes
   const filtered = users.filter(
     (u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())
   );
@@ -56,6 +90,7 @@ export default function AdminPage() {
   /* ── User actions ── */
   const startEdit = (u) => { setEditingId(u.id); setEditRole(u.role); };
 
+<<<<<<< Updated upstream
   const saveEdit = (id) => {
     const updated = users.map((u) => u.id === id ? { ...u, role: editRole } : u);
     setUsers(updated);
@@ -79,10 +114,41 @@ export default function AdminPage() {
     setUsers(updated);
     setMockUsers(updated);
     setSecurityLogs((prev) => [{ id: Date.now(), time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), event: 'User deleted', user: deleted?.name || 'Unknown', severity: 'high' }, ...prev]);
+=======
+  const saveEdit = async (id) => {
+    try {
+      await updateUserRole(id, editRole);
+      setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role: editRole } : u));
+      setEditingId(null);
+    } catch (err) {
+      alert(`Failed to update role: ${err.message}`);
+    }
+  };
+
+  const handleResetPassword = async (u) => {
+    try {
+      await resetUserPassword(u.id);
+      setResetDone((prev) => ({ ...prev, [u.id]: true }));
+      setTimeout(() => setResetDone((prev) => ({ ...prev, [u.id]: false })), 2500);
+    } catch (err) {
+      alert(`Reset failed: ${err.message}`);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this user? This cannot be undone.')) return;
+    try {
+      await deleteUser(id);
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`);
+    }
+>>>>>>> Stashed changes
   };
 
   const handleAddUser = (e) => {
     e.preventDefault();
+<<<<<<< Updated upstream
     if (!addForm.name.trim() || !addForm.email.trim()) { setAddError('Name and email are required.'); return; }
     if (users.find((u) => u.email.toLowerCase() === addForm.email.toLowerCase())) { setAddError('A user with that email already exists.'); return; }
     const newUser = { id: Date.now(), name: addForm.name.trim(), email: addForm.email.trim(), role: addForm.role, status: 'active', queries: 0, lastActive: 'Just now' };
@@ -92,6 +158,9 @@ export default function AdminPage() {
     setShowAddUser(false);
     setAddForm({ name: '', email: '', role: 'analyst' });
     setAddError('');
+=======
+    setAddError('User creation via the admin panel is not yet supported through the API. Users must register directly.');
+>>>>>>> Stashed changes
   };
 
   const TABS = [
