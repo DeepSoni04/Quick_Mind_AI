@@ -12,6 +12,8 @@ class SQLStatementInfo(BaseModel):
     warning_broad_impact: bool = False
     affected_table: Optional[str] = None
     tables: List[str] = Field(default_factory=list)
+    # Structured MongoDB MQL object (set when db_type is mongodb)
+    mql: Optional[Dict[str, Any]] = None
     # Impact preview: estimated rows affected by DELETE/UPDATE before execution
     estimated_rows_affected: Optional[int] = None
 

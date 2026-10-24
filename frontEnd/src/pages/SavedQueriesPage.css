@@ -25,8 +25,8 @@
 
 .saved-header p {
   font-size: 13px;
-  color: var(--text-secondary);
-  font-weight: 600;
+  color: var(--text-muted);
+  font-weight: 300;
 }
 
 .saved-grid {
@@ -94,9 +94,9 @@
 
 .saved-card-query {
   font-size: 13px;
-  color: rgba(216, 235, 248, 0.88);
+  color: rgba(196, 218, 232, 0.40);
   font-style: italic;
-  font-weight: 600;
+  font-weight: 300;
   line-height: 1.55;
   margin-bottom: 14px;
   flex: 1;
@@ -111,42 +111,10 @@
 .saved-card-collection {
   font-size: 11px;
   font-family: var(--font-mono);
-  font-weight: 600;
-  color: rgba(216, 235, 248, 0.80);
+  color: rgba(196, 218, 232, 0.22);
 }
 
 .saved-card-date {
   font-size: 11px;
-  font-weight: 600;
-  color: rgba(216, 235, 248, 0.78);
-}
-
-
-/* ==========================================================================
-   Saved Queries Mobile Responsiveness (<= 768px)
-   ========================================================================== */
-@media (max-width: 768px) {
-  .saved-viewport {
-    height: 100% !important;
-    min-height: calc(100dvh - 60px) !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-
-  .saved-header {
-    padding: 18px 16px 12px !important;
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 10px !important;
-  }
-
-  .saved-grid {
-    padding: 16px 14px 36px !important;
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-  }
-
-  .saved-card {
-    padding: 16px !important;
-  }
+  color: rgba(196, 218, 232, 0.22);
 }

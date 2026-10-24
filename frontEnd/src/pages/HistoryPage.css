@@ -30,42 +30,6 @@
 
 .history-header p {
   font-size: 13px;
-<<<<<<< Updated upstream
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.history-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.history-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 16px;
-  padding: 15px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.18s ease;
-  outline: none;
-  background: none;
-  width: 100%;
-  text-align: left;
-}
-
-.history-row:hover {
-  background: rgba(196, 218, 232, 0.025);
-  border-color: rgba(196, 218, 232, 0.05);
-}
-
-=======
   color: var(--text-muted);
   font-weight: 300;
 }
@@ -100,16 +64,11 @@
   border-color: rgba(196, 218, 232, 0.05);
 }
 
->>>>>>> Stashed changes
 /* Type badges */
 .history-type-badge {
   border-radius: 100px;
   padding: 3px 10px;
-<<<<<<< Updated upstream
-  font-size: 10px;
-=======
   font-size: 9px;
->>>>>>> Stashed changes
   font-weight: 700;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -156,12 +115,7 @@
 .history-collection {
   font-size: 11px;
   font-family: var(--font-mono);
-<<<<<<< Updated upstream
-  font-weight: 600;
-  color: rgba(216, 235, 248, 0.80);
-=======
   color: rgba(196, 218, 232, 0.26);
->>>>>>> Stashed changes
 }
 
 /* Right meta block */
@@ -175,12 +129,7 @@
 
 .history-time {
   font-size: 12px;
-<<<<<<< Updated upstream
-  font-weight: 600;
-  color: rgba(216, 235, 248, 0.78);
-=======
   color: rgba(196, 218, 232, 0.28);
->>>>>>> Stashed changes
 }
 
 .history-count {
@@ -286,50 +235,4 @@
 .history-row--blocked:hover {
   background: none;
   border-color: transparent;
-<<<<<<< Updated upstream
-}
-
-
-/* ==========================================================================
-   History Page Mobile Responsiveness (<= 768px)
-   ========================================================================== */
-@media (max-width: 768px) {
-  .history-viewport {
-    height: 100% !important;
-    min-height: calc(100dvh - 60px) !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-
-  .history-header {
-    padding: 18px 16px 12px !important;
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 12px !important;
-  }
-
-  .history-list {
-    padding: 16px 14px 36px !important;
-  }
-
-  .history-row {
-    padding: 12px 14px !important;
-    gap: 10px !important;
-    flex-wrap: wrap !important;
-  }
-
-  .history-row-center {
-    width: calc(100% - 64px) !important;
-  }
-
-  .history-row-right {
-    width: 100% !important;
-    flex-direction: row !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    padding-top: 6px !important;
-    border-top: 1px solid rgba(196, 218, 232, 0.05) !important;
-  }
-=======
->>>>>>> Stashed changes
 }

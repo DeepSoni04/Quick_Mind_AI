@@ -29,8 +29,11 @@ class Settings(BaseSettings):
     # Optional fallback LLM providers (leave blank if not available)
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
+    # OpenRouter — OpenAI-compatible gateway supporting many models
+    OPENROUTER_API_KEY: Optional[str] = None
+    OPENROUTER_MODEL: str = "mistralai/mistral-7b-instruct"
     # Comma-separated provider priority order for automatic fallback
-    LLM_FALLBACK_ORDER: str = "gemini,openai,anthropic,mock"
+    LLM_FALLBACK_ORDER: str = "gemini,openrouter,openai,anthropic,mock"
     
     # CORS
     CORS_ORIGINS: Union[str, List[str]] = "http://localhost:5173,http://127.0.0.1:5173"

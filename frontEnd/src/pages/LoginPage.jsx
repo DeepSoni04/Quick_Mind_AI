@@ -21,20 +21,12 @@ export default function LoginPage() {
     setError('');
     setIsSubmitting(true);
     await new Promise((r) => setTimeout(r, 380)); // realistic delay
-<<<<<<< Updated upstream
-    const result = login(email.trim(), password);
-=======
     const result = await login(email.trim(), password);
->>>>>>> Stashed changes
     setIsSubmitting(false);
     if (result.success) {
       navigate('/workspace');
     } else {
-<<<<<<< Updated upstream
-      setError('Invalid credentials. Please try again.');
-=======
       setError(result.error || 'Invalid credentials. Please try again.');
->>>>>>> Stashed changes
     }
   };
 

@@ -8,8 +8,9 @@ from app.core.security import hash_password, generate_temp_password
 from app.routers.auth import get_current_user_dep
 from app.schemas.auth import UserResponse
 from app.schemas.common import ResponseModel
+from app.schemas.role_request import RoleRequestCreate, RoleRequestResponse
 from app.services.history_service import HistoryService
-from app.utils.helpers import make_avatar, utc_now
+from app.utils.helpers import utc_now
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Panel"])
 
@@ -34,11 +35,13 @@ async def get_admin_stats(
     total_queries = await db.queries.count_documents({})
     total_databases = await db.database_connections.count_documents({})
     total_sessions = await db.query_sessions.count_documents({})
+    pending_role_requests = await db.role_requests.count_documents({"status": "pending"})
     return {
         "total_users": total_users,
         "total_queries": total_queries,
         "total_databases": total_databases,
         "total_sessions": total_sessions,
+        "pending_role_requests": pending_role_requests,
     }
 
 
@@ -178,3 +181,173 @@ async def get_security_logs(
     check_admin(current_user)
     history_service = HistoryService(db)
     return await history_service.get_security_logs()
+
+
+# ─── Role Request Workflow ────────────────────────────────────────────────────
+
+@router.post("/role-requests", response_model=RoleRequestResponse)
+async def submit_role_request(
+    req: RoleRequestCreate,
+    current_user: UserResponse = Depends(get_current_user_dep),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """Any authenticated user may submit a request to be elevated to analyst or admin."""
+    if req.requested_role not in ("analyst", "admin"):
+        raise HTTPException(status_code=400, detail="requested_role must be 'analyst' or 'admin'.")
+
+    if req.requested_role == current_user.role:
+        raise HTTPException(status_code=400, detail=f"You already hold the '{current_user.role}' role.")
+
+    # Prevent duplicate pending requests for the same target role
+    existing = await db.role_requests.find_one({
+        "user_id": current_user.id,
+        "requested_role": req.requested_role,
+        "status": "pending"
+    })
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="You already have a pending request for this role. Wait for admin review."
+        )
+
+    now = utc_now()
+    doc = {
+        "user_id": current_user.id,
+        "user_name": current_user.name,
+        "user_email": current_user.email,
+        "requested_role": req.requested_role,
+        "status": "pending",
+        "reason": req.reason,
+        "reviewed_by": None,
+        "reviewed_at": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+    result = await db.role_requests.insert_one(doc)
+    return RoleRequestResponse(
+        id=str(result.inserted_id),
+        user_id=current_user.id,
+        user_name=current_user.name,
+        user_email=current_user.email,
+        requested_role=req.requested_role,
+        status="pending",
+        reason=req.reason,
+        created_at=now.isoformat() if hasattr(now, "isoformat") else str(now),
+    )
+
+
+@router.get("/role-requests/my", response_model=List[RoleRequestResponse])
+async def get_my_role_requests(
+    current_user: UserResponse = Depends(get_current_user_dep),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """Return the current user's own role-request history (most recent first)."""
+    cursor = db.role_requests.find({"user_id": current_user.id}).sort("created_at", -1).limit(10)
+    result = []
+    async for doc in cursor:
+        result.append(_format_role_request(doc))
+    return result
+
+
+@router.get("/role-requests", response_model=List[RoleRequestResponse])
+async def list_role_requests(
+    current_user: UserResponse = Depends(get_current_user_dep),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    status_filter: str = "pending"
+):
+    """Admin: list role requests, filtered by status (pending/approved/rejected/all)."""
+    check_admin(current_user)
+    query_filter = {} if status_filter == "all" else {"status": status_filter}
+    cursor = db.role_requests.find(query_filter).sort("created_at", -1).limit(100)
+    result = []
+    async for doc in cursor:
+        result.append(_format_role_request(doc))
+    return result
+
+
+@router.post("/role-requests/{request_id}/approve", response_model=RoleRequestResponse)
+async def approve_role_request(
+    request_id: str,
+    current_user: UserResponse = Depends(get_current_user_dep),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """Admin: approve a role request. Updates the user's role in the users collection."""
+    check_admin(current_user)
+    doc = await _get_role_request(db, request_id)
+
+    if doc["status"] != "pending":
+        raise HTTPException(status_code=400, detail=f"Request is already '{doc['status']}'.")
+
+    # Prevent admin from approving their own request
+    if doc["user_id"] == current_user.id:
+        raise HTTPException(status_code=403, detail="Admins cannot approve their own role requests.")
+
+    now = utc_now()
+    # Apply the role to the user
+    await db.users.update_one(
+        {"_id": ObjectId(doc["user_id"])},
+        {"$set": {"role": doc["requested_role"], "updated_at": now}}
+    )
+    # Mark the request as approved
+    await db.role_requests.update_one(
+        {"_id": ObjectId(request_id)},
+        {"$set": {"status": "approved", "reviewed_by": current_user.id, "reviewed_at": now, "updated_at": now}}
+    )
+
+    updated = await db.role_requests.find_one({"_id": ObjectId(request_id)})
+    return _format_role_request(updated)
+
+
+@router.post("/role-requests/{request_id}/reject", response_model=RoleRequestResponse)
+async def reject_role_request(
+    request_id: str,
+    current_user: UserResponse = Depends(get_current_user_dep),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """Admin: reject a role request."""
+    check_admin(current_user)
+    doc = await _get_role_request(db, request_id)
+
+    if doc["status"] != "pending":
+        raise HTTPException(status_code=400, detail=f"Request is already '{doc['status']}'.")
+
+    now = utc_now()
+    await db.role_requests.update_one(
+        {"_id": ObjectId(request_id)},
+        {"$set": {"status": "rejected", "reviewed_by": current_user.id, "reviewed_at": now, "updated_at": now}}
+    )
+    updated = await db.role_requests.find_one({"_id": ObjectId(request_id)})
+    return _format_role_request(updated)
+
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async def _get_role_request(db: AsyncIOMotorDatabase, request_id: str) -> dict:
+    try:
+        obj_id = ObjectId(request_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request_id format.")
+    doc = await db.role_requests.find_one({"_id": obj_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Role request not found.")
+    return doc
+
+
+def _format_role_request(doc: dict) -> RoleRequestResponse:
+    def _fmt(dt):
+        if dt is None:
+            return None
+        return dt.isoformat() if hasattr(dt, "isoformat") else str(dt)
+
+    return RoleRequestResponse(
+        id=str(doc["_id"]),
+        user_id=doc.get("user_id", ""),
+        user_name=doc.get("user_name", ""),
+        user_email=doc.get("user_email", ""),
+        requested_role=doc.get("requested_role", ""),
+        status=doc.get("status", "pending"),
+        reason=doc.get("reason"),
+        reviewed_by=doc.get("reviewed_by"),
+        reviewed_at=_fmt(doc.get("reviewed_at")),
+        created_at=_fmt(doc.get("created_at")) or "",
+    )

@@ -1,10 +1,5 @@
-<<<<<<< Updated upstream
-import { useState } from 'react';
-import { getMockUsers, setMockUsers } from '../context/AuthContext';
-=======
 import { useState, useEffect } from 'react';
-import { getAdminUsers, updateUserRole, resetUserPassword, deleteUser, getSecurityLogs } from '../context/api';
->>>>>>> Stashed changes
+import { getAdminUsers, updateUserRole, resetUserPassword, deleteUser, getSecurityLogs, getAdminRoleRequests, approveRoleRequest, rejectRoleRequest } from '../context/api';
 import './AdminPage.css';
 
 // Icons as inline SVGs to avoid any dependency issues
@@ -18,23 +13,9 @@ const IconTrash   = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="
 const IconAlert   = () => <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7.5 1L14 13H1z"/><line x1="7.5" y1="6" x2="7.5" y2="9"/><circle cx="7.5" cy="11" r="0.6" fill="currentColor" stroke="none"/></svg>;
 const IconPlus    = () => <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><line x1="7" y1="2" x2="7" y2="12"/><line x1="2" y1="7" x2="12" y2="7"/></svg>;
 const IconCheck   = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7l4 4 5-6"/></svg>;
-<<<<<<< Updated upstream
-
-const INITIAL_SECURITY_LOGS = [
-  { id: 1, time: '19:22', event: 'Blocked destructive query: DROP TABLE',    user: 'Neel Shah',     severity: 'high' },
-  { id: 2, time: '18:45', event: 'SQL injection pattern detected',            user: 'Unknown',       severity: 'critical' },
-  { id: 3, time: '17:30', event: 'Role escalation attempt blocked',           user: 'Guest User',    severity: 'high' },
-  { id: 4, time: '16:10', event: 'Query timeout enforced (30s limit)',         user: 'Parshwa Jain',  severity: 'medium' },
-  { id: 5, time: '15:45', event: 'Unauthorized table access blocked',          user: 'Nishit Gal',    severity: 'medium' },
-  { id: 6, time: '14:20', event: 'Failed login attempt (3rd try)',             user: 'Unknown',       severity: 'high' },
-  { id: 7, time: '13:05', event: 'Password reset triggered',                  user: 'Heer Sachdev',  severity: 'low' },
-];
-
-=======
 
 
 
->>>>>>> Stashed changes
 const ROLES = ['admin', 'analyst', 'viewer'];
 
 function makeAvatar(name = '') {
@@ -44,16 +25,16 @@ function makeAvatar(name = '') {
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
-<<<<<<< Updated upstream
-  const [users, setUsers]         = useState(() => getMockUsers().map((u) => ({ ...u, status: u.status || 'active' })));
-  const [search, setSearch]       = useState('');
-  const [securityLogs, setSecurityLogs] = useState(INITIAL_SECURITY_LOGS);
-=======
   const [users, setUsers]         = useState([]);
   const [search, setSearch]       = useState('');
   const [securityLogs, setSecurityLogs] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
->>>>>>> Stashed changes
+
+  // Role request state
+  const [roleRequests, setRoleRequests]         = useState([]);
+  const [roleReqFilter, setRoleReqFilter]       = useState('pending');
+  const [roleReqLoading, setRoleReqLoading]     = useState(false);
+  const [roleReqActionMsg, setRoleReqActionMsg] = useState({});
 
   // Edit state
   const [editingId, setEditingId] = useState(null);
@@ -67,9 +48,7 @@ export default function AdminPage() {
   // Reset password feedback
   const [resetDone, setResetDone] = useState({});
 
-<<<<<<< Updated upstream
-=======
-  // Load users and security logs on mount
+  // Load users, security logs, and role requests on mount
   useEffect(() => {
     setLoadingUsers(true);
     getAdminUsers()
@@ -80,9 +59,42 @@ export default function AdminPage() {
     getSecurityLogs()
       .then((data) => setSecurityLogs(Array.isArray(data) ? data : []))
       .catch(() => setSecurityLogs([]));
+
+    loadRoleRequests('pending');
   }, []);
 
->>>>>>> Stashed changes
+  const loadRoleRequests = (filter) => {
+    setRoleReqLoading(true);
+    setRoleReqFilter(filter);
+    getAdminRoleRequests(filter)
+      .then((data) => setRoleRequests(Array.isArray(data) ? data : []))
+      .catch(() => setRoleRequests([]))
+      .finally(() => setRoleReqLoading(false));
+  };
+
+  const handleApproveRequest = async (id) => {
+    setRoleReqActionMsg((m) => ({ ...m, [id]: { type: 'loading', text: 'Approving…' } }));
+    try {
+      await approveRoleRequest(id);
+      setRoleReqActionMsg((m) => ({ ...m, [id]: { type: 'success', text: '✓ Approved' } }));
+      setRoleRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r));
+    } catch (err) {
+      setRoleReqActionMsg((m) => ({ ...m, [id]: { type: 'error', text: `Error: ${err.message}` } }));
+    }
+  };
+
+  const handleRejectRequest = async (id) => {
+    setRoleReqActionMsg((m) => ({ ...m, [id]: { type: 'loading', text: 'Rejecting…' } }));
+    try {
+      await rejectRoleRequest(id);
+      setRoleReqActionMsg((m) => ({ ...m, [id]: { type: 'success', text: '✓ Rejected' } }));
+      setRoleRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'rejected' } : r));
+    } catch (err) {
+      setRoleReqActionMsg((m) => ({ ...m, [id]: { type: 'error', text: `Error: ${err.message}` } }));
+    }
+  };
+
+
   const filtered = users.filter(
     (u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())
   );
@@ -90,31 +102,6 @@ export default function AdminPage() {
   /* ── User actions ── */
   const startEdit = (u) => { setEditingId(u.id); setEditRole(u.role); };
 
-<<<<<<< Updated upstream
-  const saveEdit = (id) => {
-    const updated = users.map((u) => u.id === id ? { ...u, role: editRole } : u);
-    setUsers(updated);
-    setMockUsers(updated);
-    setEditingId(null);
-    // Log event
-    const u = users.find((x) => x.id === id);
-    setSecurityLogs((prev) => [{ id: Date.now(), time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), event: `Role changed to ${editRole}`, user: u?.name || 'Unknown', severity: 'low' }, ...prev]);
-  };
-
-  const handleResetPassword = (u) => {
-    setResetDone((prev) => ({ ...prev, [u.id]: true }));
-    setSecurityLogs((prev) => [{ id: Date.now(), time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), event: 'Password reset triggered', user: u.name, severity: 'low' }, ...prev]);
-    setTimeout(() => setResetDone((prev) => ({ ...prev, [u.id]: false })), 2500);
-  };
-
-  const handleDelete = (id) => {
-    if (!window.confirm('Delete this user? This cannot be undone.')) return;
-    const deleted = users.find((u) => u.id === id);
-    const updated = users.filter((u) => u.id !== id);
-    setUsers(updated);
-    setMockUsers(updated);
-    setSecurityLogs((prev) => [{ id: Date.now(), time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), event: 'User deleted', user: deleted?.name || 'Unknown', severity: 'high' }, ...prev]);
-=======
   const saveEdit = async (id) => {
     try {
       await updateUserRole(id, editRole);
@@ -143,28 +130,16 @@ export default function AdminPage() {
     } catch (err) {
       alert(`Delete failed: ${err.message}`);
     }
->>>>>>> Stashed changes
   };
 
   const handleAddUser = (e) => {
     e.preventDefault();
-<<<<<<< Updated upstream
-    if (!addForm.name.trim() || !addForm.email.trim()) { setAddError('Name and email are required.'); return; }
-    if (users.find((u) => u.email.toLowerCase() === addForm.email.toLowerCase())) { setAddError('A user with that email already exists.'); return; }
-    const newUser = { id: Date.now(), name: addForm.name.trim(), email: addForm.email.trim(), role: addForm.role, status: 'active', queries: 0, lastActive: 'Just now' };
-    const updated = [...users, newUser];
-    setUsers(updated);
-    setMockUsers(updated);
-    setShowAddUser(false);
-    setAddForm({ name: '', email: '', role: 'analyst' });
-    setAddError('');
-=======
     setAddError('User creation via the admin panel is not yet supported through the API. Users must register directly.');
->>>>>>> Stashed changes
   };
 
   const TABS = [
     { id: 'users',    label: 'Users',         Icon: IconUsers },
+    { id: 'requests', label: 'Role Requests',  Icon: IconAlert, badge: roleRequests.filter((r) => r.status === 'pending').length || null },
     { id: 'security', label: 'Security Logs',  Icon: IconLogs  },
   ];
 
@@ -213,13 +188,21 @@ export default function AdminPage() {
 
       {/* ── Tabs ── */}
       <div className="admin-page__tabs">
-        {TABS.map(({ id, label, Icon }) => (
+        {TABS.map(({ id, label, Icon, badge }) => (
           <button
             key={id}
             className={`admin-page__tab ${activeTab === id ? 'admin-page__tab--active' : ''}`}
-            onClick={() => setActiveTab(id)}
+            onClick={() => { setActiveTab(id); if (id === 'requests') loadRoleRequests(roleReqFilter); }}
+            style={{ position: 'relative' }}
           >
             <Icon /> {label}
+            {badge > 0 && (
+              <span style={{
+                position: 'absolute', top: 4, right: 4, background: '#dc2626', color: '#fff',
+                fontSize: 10, fontWeight: 700, borderRadius: '50%', width: 16, height: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+              }}>{badge}</span>
+            )}
           </button>
         ))}
       </div>
@@ -331,6 +314,108 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── Role Requests Tab ── */}
+      {activeTab === 'requests' && (
+        <div className="admin-page__content">
+          <div className="admin-page__toolbar" style={{ marginBottom: 16 }}>
+            {['pending', 'approved', 'rejected', 'all'].map((f) => (
+              <button
+                key={f}
+                onClick={() => loadRoleRequests(f)}
+                style={{
+                  padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  border: 'none', cursor: 'pointer', textTransform: 'capitalize',
+                  background: roleReqFilter === f ? '#dc2626' : 'rgba(255,255,255,0.07)',
+                  color: roleReqFilter === f ? '#fff' : 'rgba(224,224,230,0.7)',
+                  marginRight: 6,
+                }}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          {roleReqLoading && (
+            <p style={{ color: 'rgba(224,224,230,0.5)', fontSize: 13, textAlign: 'center', padding: '32px 0' }}>Loading…</p>
+          )}
+          {!roleReqLoading && roleRequests.length === 0 && (
+            <p style={{ color: 'rgba(224,224,230,0.4)', fontSize: 13, textAlign: 'center', padding: '48px 0' }}>
+              No {roleReqFilter === 'all' ? '' : roleReqFilter} role requests found.
+            </p>
+          )}
+
+          {!roleReqLoading && roleRequests.map((req) => {
+            const msg = roleReqActionMsg[req.id];
+            const isPending = req.status === 'pending';
+            return (
+              <div key={req.id} style={{
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(224,224,230,0.08)',
+                borderRadius: 10, padding: '14px 18px', marginBottom: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                animation: 'fadeRow 0.3s ease-out both',
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                    <div className="admin-page__user-avatar" style={{ width: 30, height: 30, fontSize: 12 }}>
+                      {makeAvatar(req.user_name)}
+                    </div>
+                    <div>
+                      <span style={{ color: 'rgba(224,224,230,0.9)', fontWeight: 600, fontSize: 14 }}>
+                        {req.user_name}
+                      </span>
+                      <span style={{ color: 'rgba(224,224,230,0.45)', fontSize: 12, marginLeft: 8 }}>
+                        {req.user_email}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'rgba(224,224,230,0.65)', paddingLeft: 40 }}>
+                    Requesting role → <strong style={{ color: '#feefb8' }}>{req.requested_role}</strong>
+                    {req.reason && <span style={{ marginLeft: 10, fontStyle: 'italic' }}>"{req.reason}"</span>}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                  {!isPending && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12,
+                      background: req.status === 'approved' ? 'rgba(34,197,94,0.15)' : 'rgba(248,113,113,0.15)',
+                      color: req.status === 'approved' ? '#22c55e' : '#f87171',
+                    }}>
+                      {req.status.toUpperCase()}
+                    </span>
+                  )}
+                  {msg ? (
+                    <span style={{
+                      fontSize: 12, fontWeight: 600,
+                      color: msg.type === 'success' ? '#22c55e' : msg.type === 'error' ? '#f87171' : 'rgba(224,224,230,0.5)',
+                    }}>{msg.text}</span>
+                  ) : isPending ? (
+                    <>
+                      <button
+                        onClick={() => handleApproveRequest(req.id)}
+                        style={{
+                          background: 'rgba(34,197,94,0.15)', color: '#22c55e',
+                          border: '1px solid rgba(34,197,94,0.3)',
+                          borderRadius: 7, padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        }}
+                      >✓ Approve</button>
+                      <button
+                        onClick={() => handleRejectRequest(req.id)}
+                        style={{
+                          background: 'rgba(248,113,113,0.12)', color: '#f87171',
+                          border: '1px solid rgba(248,113,113,0.3)',
+                          borderRadius: 7, padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        }}
+                      >✕ Reject</button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

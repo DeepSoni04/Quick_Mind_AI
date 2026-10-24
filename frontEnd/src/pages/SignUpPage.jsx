@@ -36,7 +36,7 @@ export default function SignUpPage() {
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setIsSubmitting(true);
     await new Promise((r) => setTimeout(r, 450));
-    const result = signup(form.name.trim(), form.email.trim(), form.password);
+    const result = await signup(form.name.trim(), form.email.trim(), form.password);
     setIsSubmitting(false);
     if (result.success) {
       navigate('/workspace');

@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react';
-<<<<<<< Updated upstream
-import { useNavigate } from 'react-router-dom';
+import { getSettings, updateSettings, submitRoleRequest, getMyRoleRequests } from '../context/api';
 import { useAuth } from '../context/AuthContext';
-import { getSettings, updateSettings } from '../context/api';
-=======
-import { getSettings, updateSettings } from '../context/api';
-import { useAuth } from '../context/AuthContext';
->>>>>>> Stashed changes
 import './SettingsPage.css';
 
 /**
@@ -32,36 +26,6 @@ function Toggle({ checked, onChange }) {
  * Spec: Section 6 Screen 11
  */
 export default function SettingsPage() {
-<<<<<<< Updated upstream
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const [settings, setSettings] = useState({
-    confirmUpdates: true,
-    confirmDeletes: true,
-    rowLimit: 100,
-    queryTimeout: 30,
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // TODO: replace mock with real API call
-    getSettings().then((data) => { setSettings(data); setLoading(false); });
-  }, []);
-
-  const handleToggle = async (key) => {
-    const updated = { ...settings, [key]: !settings[key] };
-    setSettings(updated);
-    // TODO: replace mock with real API call
-    await updateSettings({ [key]: updated[key] });
-  };
-
-  const handleSelect = async (key, value) => {
-    const updated = { ...settings, [key]: Number(value) };
-    setSettings(updated);
-    // TODO: replace mock with real API call
-    await updateSettings({ [key]: Number(value) });
-  };
-=======
   const { user, updateUser } = useAuth();
 
   // --- Query / app preferences from backend ---
@@ -76,6 +40,13 @@ export default function SettingsPage() {
   // --- Profile editable fields ---
   const [draftName, setDraftName] = useState('');
   const [savedName, setSavedName] = useState('');
+
+  // --- Role Request State ---
+  const [myRoleRequests, setMyRoleRequests] = useState([]);
+  const [roleRequestRole, setRoleRequestRole] = useState('analyst');
+  const [roleRequestReason, setRoleRequestReason] = useState('');
+  const [roleRequestLoading, setRoleRequestLoading] = useState(false);
+  const [roleRequestMsg, setRoleRequestMsg] = useState(null);
 
   // --- Save state ---
   const [saving, setSaving]       = useState(false);
@@ -103,6 +74,13 @@ export default function SettingsPage() {
       .catch(() => {/* keep defaults */})
       .finally(() => setLoadingSettings(false));
   }, []);
+
+  // Load own role requests for non-admin users
+  useEffect(() => {
+    if (user && user.role !== 'admin') {
+      getMyRoleRequests().then(setMyRoleRequests).catch(() => {});
+    }
+  }, [user]);
 
   const handleToggle = (key) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -162,7 +140,6 @@ export default function SettingsPage() {
   };
 
   const isLoading = loadingSettings || !user;
->>>>>>> Stashed changes
 
   return (
     <div className="settings-viewport">
@@ -171,11 +148,7 @@ export default function SettingsPage() {
         <p>QueryMind preferences</p>
       </header>
 
-<<<<<<< Updated upstream
-      {loading ? (
-=======
       {isLoading ? (
->>>>>>> Stashed changes
         <div style={{ padding: '28px 36px', color: 'rgba(224,224,230,0.32)', fontSize: 13 }}>Loading…</div>
       ) : (
         <div className="settings-body">
@@ -215,11 +188,7 @@ export default function SettingsPage() {
                   value={settings.rowLimit}
                   onChange={(e) => handleSelect('rowLimit', e.target.value)}
                 >
-<<<<<<< Updated upstream
-                  {[50, 100, 250, 500].map((v) => (
-=======
                   {[50, 100, 250, 500, 1000].map((v) => (
->>>>>>> Stashed changes
                     <option key={v} value={v}>{v}</option>
                   ))}
                 </select>
@@ -245,37 +214,6 @@ export default function SettingsPage() {
 
           {/* ── Section 2: Account ──────────────────────────────── */}
           <div>
-<<<<<<< Updated upstream
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span className="settings-section-label" style={{ marginBottom: 0 }}>Account</span>
-              <button
-                type="button"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--accent-butter)',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  padding: '2px 6px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-                onClick={() => navigate('/profile')}
-              >
-                Manage Profile & Security →
-              </button>
-            </div>
-            <div className="settings-card">
-              <div className="settings-row">
-                <span className="settings-row-label">Name</span>
-                <span className="settings-mono-value">{user?.name || 'Administrator'}</span>
-              </div>
-              <div className="settings-row">
-                <span className="settings-row-label">Email</span>
-                <span className="settings-mono-value">{user?.email || 'admin@querymind.ai'}</span>
-=======
             <span className="settings-section-label">Account</span>
             <div className="settings-card">
               <div className="settings-row">
@@ -301,23 +239,123 @@ export default function SettingsPage() {
               <div className="settings-row">
                 <span className="settings-row-label">Email</span>
                 <span className="settings-mono-value">{user?.email || '—'}</span>
->>>>>>> Stashed changes
               </div>
               <div className="settings-row">
                 <span className="settings-row-label">Role</span>
                 <span className="settings-role-badge" style={{ textTransform: 'capitalize' }}>
-<<<<<<< Updated upstream
-                  {user?.role || 'Viewer'}
-=======
                   {user?.role || '—'}
->>>>>>> Stashed changes
                 </span>
               </div>
             </div>
           </div>
 
-<<<<<<< Updated upstream
-=======
+          {/* ── Section 2b: Request Role (non-admin only) ──────── */}
+          {user?.role !== 'admin' && (
+            <div>
+              <span className="settings-section-label">Request Role Elevation</span>
+              <div className="settings-card">
+                {myRoleRequests.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    {myRoleRequests.slice(0, 3).map((rr) => (
+                      <div key={rr.id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '8px 0', borderBottom: '1px solid rgba(224,224,230,0.08)', fontSize: 13
+                      }}>
+                        <span style={{ color: 'rgba(224,224,230,0.7)' }}>
+                          Request for <strong style={{ color: '#feefb8' }}>{rr.requested_role}</strong>
+                        </span>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12,
+                          background: rr.status === 'approved' ? 'rgba(34,197,94,0.15)'
+                            : rr.status === 'rejected' ? 'rgba(248,113,113,0.15)'
+                            : 'rgba(241,196,15,0.15)',
+                          color: rr.status === 'approved' ? '#22c55e'
+                            : rr.status === 'rejected' ? '#f87171'
+                            : '#f1c40f',
+                        }}>
+                          {rr.status.toUpperCase()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!myRoleRequests.some((r) => r.status === 'pending') ? (
+                  <>
+                    <div className="settings-row">
+                      <div className="settings-row-left">
+                        <span className="settings-row-label">Requested role</span>
+                        <span className="settings-row-hint">Choose the role you need access to</span>
+                      </div>
+                      <select
+                        className="settings-select"
+                        value={roleRequestRole}
+                        onChange={(e) => setRoleRequestRole(e.target.value)}
+                      >
+                        {user?.role !== 'analyst' && <option value="analyst">Analyst</option>}
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                    <div className="settings-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 8 }}>
+                      <span className="settings-row-label">
+                        Reason <span style={{ color: 'rgba(224,224,230,0.4)', fontWeight: 400 }}>(optional)</span>
+                      </span>
+                      <textarea
+                        rows={2}
+                        placeholder="Briefly explain why you need this access..."
+                        value={roleRequestReason}
+                        onChange={(e) => setRoleRequestReason(e.target.value)}
+                        style={{
+                          width: '100%', background: 'rgba(0,0,0,0.25)', color: 'rgba(224,224,230,0.9)',
+                          border: '1px solid rgba(224,224,230,0.15)', borderRadius: 6, fontSize: 13,
+                          padding: '7px 10px', outline: 'none', resize: 'none', boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                      <button
+                        type="button"
+                        disabled={roleRequestLoading}
+                        onClick={async () => {
+                          setRoleRequestLoading(true);
+                          setRoleRequestMsg(null);
+                          try {
+                            await submitRoleRequest(roleRequestRole, roleRequestReason);
+                            setRoleRequestMsg({ type: 'success', text: 'Request submitted. An admin will review it shortly.' });
+                            setRoleRequestReason('');
+                            const updated = await getMyRoleRequests();
+                            setMyRoleRequests(updated);
+                          } catch (err) {
+                            setRoleRequestMsg({ type: 'error', text: err.message || 'Failed to submit request.' });
+                          } finally {
+                            setRoleRequestLoading(false);
+                          }
+                        }}
+                        style={{
+                          background: roleRequestLoading ? 'rgba(220,38,38,0.5)' : '#dc2626',
+                          color: '#fff', border: 'none', borderRadius: 8,
+                          padding: '8px 18px', fontSize: 13, fontWeight: 600,
+                          cursor: roleRequestLoading ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {roleRequestLoading ? 'Submitting…' : 'Submit Request'}
+                      </button>
+                      {roleRequestMsg && (
+                        <span style={{ fontSize: 13, color: roleRequestMsg.type === 'success' ? '#22c55e' : '#f87171', fontWeight: 500 }}>
+                          {roleRequestMsg.type === 'success' ? '✓ ' : '✕ '}{roleRequestMsg.text}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ color: 'rgba(241,196,15,0.8)', fontSize: 13, margin: 0 }}>
+                    ⏳ You have a pending request. Please wait for admin review before submitting another.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── Save / Discard ───────────────────────────────────── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
             <button
@@ -371,7 +409,6 @@ export default function SettingsPage() {
             )}
           </div>
 
->>>>>>> Stashed changes
           {/* ── Section 3: About ────────────────────────────────── */}
           <div>
             <span className="settings-section-label">About</span>
@@ -386,11 +423,7 @@ export default function SettingsPage() {
                 <p className="settings-about-footer">
                   MSc IT Application Development Project · 2026
                   <br />
-<<<<<<< Updated upstream
-                  Natural language database assistant · MongoDB
-=======
                   Natural language database assistant · MongoDB + MySQL
->>>>>>> Stashed changes
                 </p>
               </div>
             </div>

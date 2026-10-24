@@ -14,10 +14,6 @@ function ConnectionsScreen() {
   const [showManage, setShowManage]   = useState({});
 
   useEffect(() => {
-<<<<<<< Updated upstream
-    // TODO: replace mock with real API call
-=======
->>>>>>> Stashed changes
     getConnections().then((data) => { setConnections(data); setLoading(false); });
   }, []);
 
@@ -25,18 +21,9 @@ function ConnectionsScreen() {
     setShowManage((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const handleDisconnect = async (id) => {
-<<<<<<< Updated upstream
-    // TODO: replace mock with real API call
     await disconnectConnection(id);
     setConnections((prev) => prev.filter((c) => c.id !== id));
   };
-
-  const STATS_LABELS = ['Collections', 'Last synced', 'Host', 'Database'];
-=======
-    await disconnectConnection(id);
-    setConnections((prev) => prev.filter((c) => c.id !== id));
-  };
->>>>>>> Stashed changes
 
   return (
     <div className="connections-viewport">
@@ -60,14 +47,6 @@ function ConnectionsScreen() {
         )}
 
         {!loading && connections.map((conn) => {
-<<<<<<< Updated upstream
-          const stats = [
-            { label: STATS_LABELS[0], value: String(conn.collectionsCount || 7) },
-            { label: STATS_LABELS[1], value: conn.lastSynced || '3 min ago' },
-            { label: STATS_LABELS[2], value: conn.host || 'cluster0.mongodb.net' },
-            { label: STATS_LABELS[3], value: conn.database || 'college_db' },
-          ];
-=======
   const dbTypeLabel = conn.db_type === 'mongodb' ? 'MongoDB'
             : conn.db_type === 'postgresql' ? 'PostgreSQL'
             : 'MySQL';
@@ -84,7 +63,6 @@ function ConnectionsScreen() {
                 { label: 'Host',        value: conn.host || '—' },
                 { label: 'Database',    value: conn.database_name || conn.database || '—' },
               ];
->>>>>>> Stashed changes
 
           return (
             <div key={conn.id} className="conn-card">
@@ -95,11 +73,7 @@ function ConnectionsScreen() {
                     <span className="conn-status-text">Connected</span>
                   </div>
                   <div className="conn-card-name">{conn.name}</div>
-<<<<<<< Updated upstream
-                  <div className="conn-card-type">{conn.type}</div>
-=======
                   <div className="conn-card-type">{dbTypeLabel}</div>
->>>>>>> Stashed changes
                 </div>
                 <button
                   type="button"
@@ -120,11 +94,7 @@ function ConnectionsScreen() {
                 ))}
               </div>
 
-<<<<<<< Updated upstream
-              {/* Manage panel (toggled via real state) */}
-=======
               {/* Manage panel */}
->>>>>>> Stashed changes
               {showManage[conn.id] && (
                 <div className="conn-manage-panel">
                   <button type="button" className="btn-sync">Sync Schema</button>
@@ -160,18 +130,6 @@ function ConnectionsScreen() {
 
 /**
  * Screen 10 — Add Connection
-<<<<<<< Updated upstream
- * Spec: Section 6 Screen 10
- */
-function AddConnectionScreen() {
-  const navigate = useNavigate();
-  const [formData, setFormData]     = useState({ name: '', connectionString: '', database: '' });
-  const [testState, setTestState]   = useState('idle'); // 'idle' | 'testing' | 'success' | 'error'
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  const handleField = (e) =>
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-=======
  * Supports both MongoDB (URI-based) and MySQL (host/port/credentials).
  */
 function AddConnectionScreen() {
@@ -245,32 +203,19 @@ function AddConnectionScreen() {
       password: mysqlPass,
     };
   };
->>>>>>> Stashed changes
 
   const handleTest = async () => {
     if (testState === 'testing') return;
     setTestState('testing');
-<<<<<<< Updated upstream
-    // TODO: replace mock with real API call
-    const result = await testConnection(formData);
-    setTestState(result.success ? 'success' : 'error');
-=======
     setTestMsg('');
     const result = await testConnection(buildPayload());
     setTestState(result.success ? 'success' : 'error');
     setTestMsg(result.message || '');
->>>>>>> Stashed changes
   };
 
   const handleConnect = async () => {
     if (isConnecting) return;
     setIsConnecting(true);
-<<<<<<< Updated upstream
-    // TODO: replace mock with real API call
-    await addConnection(formData);
-    setIsConnecting(false);
-    navigate('/connections');
-=======
     setConnectError('');
     const result = await addConnection(buildPayload());
     setIsConnecting(false);
@@ -279,7 +224,6 @@ function AddConnectionScreen() {
     } else {
       setConnectError(result.message || 'Failed to save connection.');
     }
->>>>>>> Stashed changes
   };
 
   const isTesting = testState === 'testing';
@@ -294,65 +238,18 @@ function AddConnectionScreen() {
         Connections
       </button>
 
-<<<<<<< Updated upstream
-      <h2 className="add-conn-title">Add MongoDB Connection</h2>
-=======
       <h2 className="add-conn-title">Add Database Connection</h2>
->>>>>>> Stashed changes
 
       <form
         className="add-conn-form"
         onSubmit={(e) => { e.preventDefault(); handleConnect(); }}
       >
-<<<<<<< Updated upstream
-=======
         {/* ── Connection Name ── */}
->>>>>>> Stashed changes
         <div className="add-conn-field">
           <label className="add-conn-label">Connection Name</label>
           <input
             className="add-conn-input"
             name="name"
-<<<<<<< Updated upstream
-            value={formData.name}
-            onChange={handleField}
-            placeholder="e.g. Student Database"
-          />
-        </div>
-
-        <div className="add-conn-field">
-          <label className="add-conn-label">Connection String</label>
-          <input
-            className="add-conn-input"
-            name="connectionString"
-            value={formData.connectionString}
-            onChange={handleField}
-            placeholder="mongodb+srv://user:pass@cluster0.mongodb.net"
-          />
-        </div>
-
-        <div className="add-conn-field">
-          <label className="add-conn-label">Database Name</label>
-          <input
-            className="add-conn-input"
-            name="database"
-            value={formData.database}
-            onChange={handleField}
-            placeholder="e.g. college_db"
-          />
-        </div>
-
-        {/* Database Type: static, non-editable */}
-        <div className="add-conn-field">
-          <label className="add-conn-label">Database Type</label>
-          <div className="add-conn-static">
-            <div className="add-conn-static-dot" />
-            <span className="add-conn-static-text">MongoDB</span>
-          </div>
-        </div>
-
-        {/* Test Connection result banner */}
-=======
             value={connName}
             onChange={(e) => setConnName(e.target.value)}
             placeholder="e.g. Student Database"
@@ -552,17 +449,12 @@ function AddConnectionScreen() {
         )}
 
         {/* ── Test result banner ── */}
->>>>>>> Stashed changes
         {testState === 'success' && (
           <div className="add-conn-banner add-conn-banner--success">
             <svg className="banner-svg" viewBox="0 0 14 14" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 7l4 4 6-6" />
             </svg>
-<<<<<<< Updated upstream
-            Connection successful — database reachable
-=======
             {testMsg || 'Connection successful — database reachable'}
->>>>>>> Stashed changes
           </div>
         )}
         {testState === 'error' && (
@@ -572,9 +464,6 @@ function AddConnectionScreen() {
               <line x1="7" y1="4.5" x2="7" y2="7.5" strokeWidth="1.5" />
               <circle cx="7" cy="9.5" r="0.6" fill="currentColor" stroke="none" />
             </svg>
-<<<<<<< Updated upstream
-            Could not connect — check your connection string.
-=======
             {testMsg || 'Could not connect — check your settings.'}
           </div>
         )}
@@ -588,7 +477,6 @@ function AddConnectionScreen() {
               <circle cx="7" cy="9.5" r="0.6" fill="currentColor" stroke="none" />
             </svg>
             {connectError}
->>>>>>> Stashed changes
           </div>
         )}
 

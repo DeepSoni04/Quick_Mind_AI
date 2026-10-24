@@ -1,243 +1,421 @@
 /**
- * QueryMind AI — Mock API & Data Layer Service
+ * QueryMind AI — Real REST API Client
  *
- * Structured as a drop-in replacement for a real REST backend.
- * Each function returns a Promise with simulated network latency
- * and full documentation of expected HTTP method, endpoint, request, and response shape.
+ * Connects to the FastAPI backend at http://localhost:8000/api
+ * Replaces the former mock data layer while preserving the same
+ * exported function signatures so every existing component keeps working.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
-// Helper for realistic async network delay
-const delay = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
+// ---------------------------------------------------------------------------
+// Token helpers
+// ---------------------------------------------------------------------------
 
-// ==========================================
-// MOCK DATA STORE (In-Memory Session State)
-// ==========================================
+function getToken() {
+  return localStorage.getItem('qm_token') || '';
+}
 
-const MOCK_STUDENTS = [
-  { id: 'STU-2024-001', name: 'Priya Sharma',    program: 'B.Tech CSE',   semester: '5th', fee: '₹65,000', dueDate: '15 Jul 2026', status: 'Overdue' },
-  { id: 'STU-2024-002', name: 'Arjun Patel',     program: 'B.Tech EE',    semester: '3rd', fee: '₹58,000', dueDate: '20 Jul 2026', status: 'Pending' },
-  { id: 'STU-2024-003', name: 'Meera Nair',      program: 'MCA',          semester: '1st', fee: '₹48,000', dueDate: '12 Jul 2026', status: 'Overdue' },
-  { id: 'STU-2024-004', name: 'Rohan Verma',     program: 'B.Tech Mech',  semester: '7th', fee: '₹72,000', dueDate: '25 Jul 2026', status: 'Pending' },
-  { id: 'STU-2024-005', name: 'Kavya Reddy',     program: 'MBA',          semester: '3rd', fee: '₹78,000', dueDate: '18 Jul 2026', status: 'Overdue' },
-  { id: 'STU-2024-006', name: 'Sanjay Gupta',    program: 'B.Sc IT',      semester: '5th', fee: '₹42,000', dueDate: '22 Jul 2026', status: 'Pending' },
-  { id: 'STU-2024-007', name: 'Ananya Singh',    program: 'B.Tech Civil', semester: '3rd', fee: '₹54,000', dueDate: '10 Jul 2026', status: 'Overdue' },
-  { id: 'STU-2024-008', name: 'Vikram Joshi',    program: 'B.Com',        semester: '1st', fee: '₹32,000', dueDate: '30 Jul 2026', status: 'Pending' },
-  { id: 'STU-2024-009', name: 'Pooja Iyer',      program: 'B.Tech CSE',   semester: '7th', fee: '₹68,000', dueDate: '14 Jul 2026', status: 'Overdue' },
-  { id: 'STU-2024-010', name: 'Rahul Mehta',     program: 'MCA',          semester: '3rd', fee: '₹52,000', dueDate: '28 Jul 2026', status: 'Pending' },
-  { id: 'STU-2024-011', name: 'Ishita Kapoor',   program: 'MBA',          semester: '1st', fee: '₹76,000', dueDate: '19 Jul 2026', status: 'Overdue' },
-  { id: 'STU-2024-012', name: 'Devraj Pandey',   program: 'B.Tech EE',    semester: '5th', fee: '₹60,000', dueDate: '24 Jul 2026', status: 'Pending' },
-  { id: 'STU-2024-013', name: 'Shruti Menon',    program: 'B.Sc IT',      semester: '3rd', fee: '₹44,000', dueDate: '16 Jul 2026', status: 'Overdue' },
-  { id: 'STU-2024-014', name: 'Karan Malhotra',  program: 'B.Tech Mech',  semester: '5th', fee: '₹66,000', dueDate: '02 Aug 2026', status: 'Pending' },
-  { id: 'STU-2024-015', name: 'Nidhi Agrawal',   program: 'B.Com',        semester: '5th', fee: '₹36,000', dueDate: '05 Aug 2026', status: 'Overdue' },
-  { id: 'STU-2024-016', name: 'Tarun Bhatia',    program: 'B.Tech Civil', semester: '7th', fee: '₹58,000', dueDate: '08 Aug 2026', status: 'Pending' },
-  { id: 'STU-2024-017', name: 'Palak Saxena',    program: 'MCA',          semester: '5th', fee: '₹50,000', dueDate: '11 Aug 2026', status: 'Overdue' },
-  { id: 'STU-2024-018', name: 'Ayush Chauhan',   program: 'B.Tech CSE',   semester: '3rd', fee: '₹64,000', dueDate: '15 Aug 2026', status: 'Pending' },
-];
+function setToken(token) {
+  if (token) localStorage.setItem('qm_token', token);
+  else localStorage.removeItem('qm_token');
+}
 
-// queryStatus: 'success' | 'blocked'
-// type: 'select' | 'update' | 'delete'
-let queryHistory = [
-  { id: 'hist-1', query: 'Which students have unpaid fees this semester?', type: 'select', status: 'success', time: '2 min ago',   count: '18 rows',    collection: 'students',   user: 'Heer Sachdev',   executionTime: '34ms' },
-  { id: 'hist-2', query: 'Show all inactive student accounts.',            type: 'select', status: 'success', time: '14 min ago',  count: '126 rows',   collection: 'students',   user: 'Heer Sachdev',   executionTime: '41ms' },
-  { id: 'hist-3', query: 'Find students enrolled in Computer Science.',    type: 'select', status: 'success', time: '1 hour ago',  count: '84 rows',    collection: 'students',   user: 'Neel Shah',      executionTime: '28ms' },
-  { id: 'hist-4', query: "Change Rahul Mehta's department to CS.",         type: 'update', status: 'success', time: '2 hours ago', count: '1 updated',  collection: 'students',   user: 'Heer Sachdev',   executionTime: '57ms' },
-  { id: 'hist-5', query: 'Show top 10 students by CGPA.',                  type: 'select', status: 'success', time: 'Yesterday',   count: '10 rows',    collection: 'students',   user: 'Deep Soni',      executionTime: '22ms' },
-  { id: 'hist-6', query: 'List all students with attendance below 75%.',   type: 'select', status: 'success', time: 'Yesterday',   count: '37 rows',    collection: 'attendance', user: 'Deep Soni',      executionTime: '36ms' },
-  { id: 'hist-7', query: 'Delete all inactive student records.',           type: 'delete', status: 'blocked', time: '2 days ago',  count: 'Blocked',    collection: 'students',   user: 'Neel Shah',      executionTime: '—' },
-  { id: 'hist-8', query: 'Update fee status for Ishita Kapoor to paid.',   type: 'update', status: 'success', time: '2 days ago',  count: '1 updated',  collection: 'students',   user: 'Heer Sachdev',   executionTime: '49ms' },
-  { id: 'hist-9', query: 'Show all students in the MBA programme.',        type: 'select', status: 'success', time: '3 days ago',  count: '96 rows',    collection: 'students',   user: 'Heer Sachdev',   executionTime: '31ms' },
-];
+// ---------------------------------------------------------------------------
+// Base fetch wrapper
+// ---------------------------------------------------------------------------
 
-const savedQueries = [
-  { id: 'saved-1', title: 'Unpaid Fees Report',  query: 'Which students have unpaid fees this semester?',  collection: 'students',   date: '12 Aug 2026' },
-  { id: 'saved-2', title: 'Inactive Students',   query: 'Show all inactive student accounts.',             collection: 'students',   date: '10 Aug 2026' },
-  { id: 'saved-3', title: 'CS Enrolment',        query: 'Show all students enrolled in Computer Science.', collection: 'students',   date: '8 Aug 2026'  },
-  { id: 'saved-4', title: 'Low Attendance Alert',query: 'List all students with attendance below 75%.',    collection: 'attendance', date: '5 Aug 2026'  },
-  { id: 'saved-5', title: 'Top CGPA Students',   query: 'Show top 10 students by CGPA.',                  collection: 'students',   date: '3 Aug 2026'  },
-  { id: 'saved-6', title: 'MBA Semester Fees',   query: 'Show all students in the MBA programme.',        collection: 'students',   date: '1 Aug 2026'  },
-];
+async function apiFetch(path, options = {}) {
+  const token = getToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
 
-let activeConnections = [
-  {
-    id: 'conn-1',
-    name: 'Student Database',
-    type: 'MongoDB',
-    status: 'Connected',
-    collectionsCount: 7,
-    queriesCount: 1134,
-    lastSynced: '3 min ago',
-    host: 'cluster0.mongodb.net',
-    database: 'college_db',
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (res.status === 401) {
+    setToken(null);
+    window.location.href = '/login';
+    throw new Error('Session expired. Please log in again.');
   }
-];
 
-let sessionSettings = {
-  confirmUpdates: true,
-  confirmDeletes: true,
-  rowLimit: 100,
-  queryTimeout: 30,
-};
+  if (!res.ok) {
+    let errMsg = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      errMsg = body?.detail || body?.message || errMsg;
+    } catch (_) {}
+    throw new Error(errMsg);
+  }
 
-// ==========================================
-// API OPERATIONS
-// ==========================================
+  // 204 No Content
+  if (res.status === 204) return null;
+
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Auth — called by AuthContext
+// ---------------------------------------------------------------------------
+
+export async function authRegister(name, email, password) {
+  const data = await apiFetch('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, password }),
+  });
+  if (data?.access_token) setToken(data.access_token);
+  return data; // { access_token, token_type, user }
+}
+
+export async function authLogin(email, password) {
+  const data = await apiFetch('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  if (data?.access_token) setToken(data.access_token);
+  return data; // { access_token, token_type, user }
+}
+
+export async function authMe() {
+  return apiFetch('/auth/me');
+}
+
+export async function updateProfile(name) {
+  return apiFetch('/auth/me', {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function authLogout() {
+  setToken(null);
+}
+
+// ---------------------------------------------------------------------------
+// Legacy login() used by some older components — wraps authLogin
+// ---------------------------------------------------------------------------
+
+export async function login(credentials) {
+  try {
+    const data = await authLogin(credentials?.email, credentials?.password);
+    return { success: true, user: data.user };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Queries
+// ---------------------------------------------------------------------------
 
 /**
- * POST /auth/login
- * NOTE: Real auth uses AuthContext.login() — this is the legacy REST-shape mock.
+ * POST /queries
+ * Generates SQL from natural language query.
  */
-export async function login(credentials) {
-  await delay(350);
-  const email = credentials?.email || 'heer@querymind.ai';
-  return { success: true, user: { name: 'Heer Sachdev', email, role: 'analyst', avatar: 'HS' } };
+export async function generateQuery({ nl_query, database_id = null, session_id = null, language = 'English', input_type = 'text' }) {
+  return apiFetch('/queries', {
+    method: 'POST',
+    body: JSON.stringify({ nl_query, database_id, session_id, language, input_type }),
+  });
 }
 
 /**
- * POST /queries/execute
+ * Legacy submitQuery() wrapper — keeps ChatPage working.
  */
 export async function submitQuery(queryText, userInfo = {}) {
-  await delay(250);
-  const text  = (queryText || '').trim();
-  const lower = text.toLowerCase();
-
-  let queryType = 'select';
-  if (/^(delete|remove|erase|purge)\b/i.test(text))  queryType = 'delete';
-  else if (/^(change|update|set|modify)\b/i.test(text) || lower.includes("'s department") || lower.includes("'s name")) queryType = 'update';
-
-  // Record into history
-  const newHistItem = {
-    id: `hist-${Date.now()}`,
-    query: text,
-    type: queryType,
-    status: 'success',
-    time: 'Just now',
-    count: queryType === 'select' ? '18 rows' : queryType === 'update' ? '1 updated' : '126 deleted',
-    collection: 'students',
-    user: userInfo.name || 'User',
-    executionTime: `${Math.floor(Math.random() * 60) + 15}ms`,
-  };
-  queryHistory = [newHistItem, ...queryHistory.slice(0, 15)];
-
-  if (queryType === 'update') {
-    return { query: text, queryType: 'update', record: { id: 'STU-2024-023', name: 'Rahul Mehta', field: 'Department', before: 'Information Technology', after: 'Computer Science', affectedCount: 1 } };
-  }
-  if (queryType === 'delete') {
-    return { query: text, queryType: 'delete', warning: { affectedCount: 126, collection: 'students', condition: 'status = inactive' } };
-  }
-  return { query: text, queryType: 'select', count: MOCK_STUDENTS.length, data: MOCK_STUDENTS, executionTime: '34ms' };
+  const result = await generateQuery({
+    nl_query: queryText,
+    database_id: userInfo.database_id || null,
+    session_id: userInfo.session_id || null,
+    input_type: userInfo.input_type || 'text',
+    language: userInfo.language || 'English'
+  });
+  return result;
 }
 
 /**
- * Add a blocked query entry to history (called by ChatPage when viewer attempts UPDATE/DELETE)
+ * POST /queries/:id/validate — re-validate after user edits SQL
  */
-export function addBlockedQuery(text, queryType, userName = 'Viewer') {
-  const newHistItem = {
-    id: `hist-${Date.now()}`,
-    query: text,
-    type: queryType,
-    status: 'blocked',
-    time: 'Just now',
-    count: 'Blocked',
-    collection: 'students',
-    user: userName,
-    executionTime: '—',
-  };
-  queryHistory = [newHistItem, ...queryHistory.slice(0, 15)];
+export async function revalidateQuery(queryId, editedSql) {
+  return apiFetch(`/queries/${queryId}/validate`, {
+    method: 'POST',
+    body: JSON.stringify({ edited_sql: editedSql }),
+  });
+}
+
+export const validateQuery = revalidateQuery;
+
+/**
+ * POST /queries/:id/approve — approve a specific statement
+ */
+export async function approveQuery(queryId, statementIndex = 0) {
+  return apiFetch(`/queries/${queryId}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ statement_index: statementIndex }),
+  });
 }
 
 /**
- * GET /queries/history
+ * POST /queries/:id/reject — reject the generated query
  */
+export async function rejectQuery(queryId) {
+  return apiFetch(`/queries/${queryId}/reject`, { method: 'POST' });
+}
+
+/**
+ * POST /queries/:id/execute — execute approved statements
+ */
+export async function executeQuery(queryId, statementIndices = null) {
+  return apiFetch(`/queries/${queryId}/execute`, {
+    method: 'POST',
+    body: JSON.stringify({ statement_indices: statementIndices }),
+  });
+}
+
+/**
+ * GET /queries/:id/export — download results as CSV
+ */
+export async function exportQueryCSV(queryId) {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}/queries/${queryId}/export`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`CSV export failed: HTTP ${res.status}`);
+  return res.blob(); // caller creates object URL
+}
+
+// ---------------------------------------------------------------------------
+// History & Dashboard
+// ---------------------------------------------------------------------------
+
 export async function getHistory() {
-  await delay(200);
-  return [...queryHistory];
+  const items = await apiFetch('/history');
+  return items || [];
 }
 
-/**
- * GET /queries/saved
- */
-export async function getSavedQueries() {
-  await delay(200);
-  return [...savedQueries];
-}
-
-/**
- * GET /dashboard/stats — derives stats from live queryHistory
- */
 export async function getDashboardStats() {
-  await delay(180);
-  const total   = queryHistory.length;
-  const success = queryHistory.filter((h) => h.status === 'success').length;
-  const blocked = queryHistory.filter((h) => h.status === 'blocked').length;
-  const rate    = total > 0 ? Math.round((success / total) * 100) : 0;
-  const times   = queryHistory.filter((h) => h.executionTime && h.executionTime !== '—').map((h) => parseInt(h.executionTime));
-  const avgTime = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 34;
-  return { total, successRate: rate, blocked, avgResponseTime: `${avgTime}ms`, recent: queryHistory.slice(0, 5) };
+  return apiFetch('/dashboard/stats');
 }
 
-/**
- * GET /connections
- */
+// Stub — no saved-queries endpoint yet; return empty list gracefully
+export async function getSavedQueries() {
+  return [];
+}
+
+// addBlockedQuery is now a no-op; backend logs it automatically
+export function addBlockedQuery() {}
+
+// ---------------------------------------------------------------------------
+// Database Connections
+// ---------------------------------------------------------------------------
+
 export async function getConnections() {
-  await delay(250);
-  return [...activeConnections];
+  const list = await apiFetch('/databases');
+  return list || [];
 }
 
+/** Alias for ChatPage database selector */
+export const getDatabaseConnections = getConnections;
+
 /**
- * POST /connections
+ * POST /databases — create & test connection
+ * Accepts: { name, db_type, host, port, database_name, username, password }
+ * OR:      { name, connection_string }
  */
 export async function addConnection(data) {
-  await delay(400);
-  const newConn = {
-    id: `conn-${Date.now()}`,
-    name: data.name || 'New Connection',
-    type: 'MongoDB',
-    status: 'Connected',
-    collectionsCount: 4,
-    queriesCount: 0,
-    lastSynced: 'Just now',
-    host: data.connectionString ? data.connectionString.split('@')[1] || 'mongodb.net' : 'cluster1.mongodb.net',
-    database: data.database || 'main_db',
-  };
-  activeConnections.push(newConn);
-  return { success: true, connection: newConn };
+  try {
+    const conn = await apiFetch('/databases', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return { success: true, connection: conn };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
 }
 
 /**
- * POST /connections/test
+ * POST /databases/test — test connectivity before saving
  */
 export async function testConnection(data) {
-  await delay(900);
-  if (!data?.connectionString || data.connectionString.toLowerCase().includes('error')) {
-    return { success: false, message: 'Could not connect — check your connection string.' };
+  try {
+    const res = await apiFetch('/databases/test', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res; // { success, message }
+  } catch (err) {
+    return { success: false, message: err.message };
   }
-  return { success: true, message: 'Connection successful — database reachable' };
 }
 
 /**
- * DELETE /connections/:id
+ * POST /databases/:id/test — test an existing saved connection
+ */
+export async function testExistingConnection(connId) {
+  try {
+    const res = await apiFetch(`/databases/${connId}/test`, { method: 'POST' });
+    return res;
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+}
+
+/**
+ * DELETE /databases/:id — disconnect & remove connection
  */
 export async function disconnectConnection(id) {
-  await delay(300);
-  activeConnections = activeConnections.filter((c) => c.id !== id);
-  return { success: true };
+  try {
+    await apiFetch(`/databases/${id}`, { method: 'DELETE' });
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
 }
 
 /**
- * GET /settings
+ * GET /databases/:id/schema — discover tables & columns
  */
+export async function getDatabaseSchema(connId) {
+  return apiFetch(`/databases/${connId}/schema`);
+}
+
+/**
+ * GET /databases/:id/permissions
+ */
+export async function getDatabasePermissions(connId) {
+  return apiFetch(`/databases/${connId}/permissions`);
+}
+
+/**
+ * POST /databases/:id/permissions
+ */
+export async function updateDatabasePermissions(connId, tables) {
+  return apiFetch(`/databases/${connId}/permissions`, {
+    method: 'POST',
+    body: JSON.stringify({ tables }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sessions
+// ---------------------------------------------------------------------------
+
+export async function getSessions() {
+  return apiFetch('/sessions');
+}
+
+export async function createSession(database_id, title = 'New Chat') {
+  return apiFetch('/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ database_id, title }),
+  });
+}
+
+export async function closeSession(sessionId) {
+  return apiFetch(`/sessions/${sessionId}/close`, { method: 'POST' });
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
 export async function getSettings() {
-  await delay(150);
-  return { ...sessionSettings };
+  try {
+    return await apiFetch('/settings');
+  } catch (_) {
+    return { confirmUpdates: true, confirmDeletes: true, rowLimit: 1000, queryTimeout: 20 };
+  }
+}
+
+export async function updateSettings(data) {
+  return apiFetch('/settings', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+export async function getAdminUsers() {
+  return apiFetch('/admin/users');
+}
+
+export async function updateUserRole(userId, role) {
+  return apiFetch(`/admin/users/${userId}/role`, {
+    method: 'PUT',
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function resetUserPassword(userId) {
+  return apiFetch(`/admin/users/${userId}/reset-password`, { method: 'POST' });
+}
+
+export async function deleteUser(userId) {
+  return apiFetch(`/admin/users/${userId}`, { method: 'DELETE' });
+}
+
+export async function getSecurityLogs() {
+  return apiFetch('/admin/security-logs');
+}
+
+// ---------------------------------------------------------------------------
+// Role Request Workflow
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /admin/role-requests — any user submits a request for elevated role
+ */
+export async function submitRoleRequest(requestedRole, reason = '') {
+  return apiFetch('/admin/role-requests', {
+    method: 'POST',
+    body: JSON.stringify({ requested_role: requestedRole, reason }),
+  });
 }
 
 /**
- * PUT /settings
+ * GET /admin/role-requests/my — current user's own requests
  */
-export async function updateSettings(data) {
-  await delay(200);
-  sessionSettings = { ...sessionSettings, ...data };
-  return { success: true, settings: { ...sessionSettings } };
+export async function getMyRoleRequests() {
+  try {
+    return await apiFetch('/admin/role-requests/my');
+  } catch (_) {
+    return [];
+  }
 }
+
+/**
+ * GET /admin/role-requests — admin: all role requests (filtered by status)
+ */
+export async function getAdminRoleRequests(statusFilter = 'pending') {
+  return apiFetch(`/admin/role-requests?status_filter=${statusFilter}`);
+}
+
+/**
+ * POST /admin/role-requests/:id/approve — admin approves a request
+ */
+export async function approveRoleRequest(requestId) {
+  return apiFetch(`/admin/role-requests/${requestId}/approve`, { method: 'POST' });
+}
+
+/**
+ * POST /admin/role-requests/:id/reject — admin rejects a request
+ */
+export async function rejectRoleRequest(requestId) {
+  return apiFetch(`/admin/role-requests/${requestId}/reject`, { method: 'POST' });
+}
+
+// ---------------------------------------------------------------------------
+// Legacy exports used by AdminPage mock helpers (now safe no-ops)
+// ---------------------------------------------------------------------------
+
+export function getMockUsers() { return []; }
+export function setMockUsers() {}

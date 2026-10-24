@@ -152,11 +152,13 @@ class ExecutionService:
                 sql_to_run = stmt["sql"]
                 executed_sqls.append(sql_to_run)
 
-                if db_type == "mongodb":
+                if db_type in ("mongodb", "mongo"):
+                    # Prefer the structured mql object; fall back to the sql string
+                    mql_obj = stmt.get("mql") or stmt.get("sql", "")
                     cols, row_data, elapsed_ms, stmt_truncated = await self._execute_mongodb_query(
                         connection_string=creds["connection_string"],
                         database_name=creds["database_name"],
-                        mql=sql_to_run,
+                        mql=mql_obj,
                         max_rows=max_rows,
                         timeout=timeout_sec
                     )
@@ -423,16 +425,32 @@ class ExecutionService:
         self,
         connection_string: str,
         database_name: str,
-        mql: str,
+        mql,  # Either a structured dict (from LLM) or a raw string (legacy)
         max_rows: int = 1000,
         timeout: int = 20,
     ) -> Tuple[List[str], List[List[Any]], int, bool]:
         """
-        Execute a MongoDB query expressed as a JSON pipeline or find-style string.
-        Supports:
-          - JSON array  → db.collection.aggregate(pipeline)
-          - JSON object → db.collection.find(filter)
-          - "collection_name" bare string → db.collection.find({})
+        Execute a MongoDB operation.
+
+        Accepts two forms for `mql`:
+          1. Structured dict (preferred, produced by the LLM service):
+             {
+               "collection": "users",
+               "operation": "find" | "aggregate" | "count" | "insert_one" |
+                             "insert_many" | "update_one" | "update_many" |
+                             "delete_one" | "delete_many",
+               "filter": {...},
+               "projection": {...},
+               "update": {...},
+               "document": {...},
+               "documents": [...],
+               "pipeline": [...],
+               "options": {...}
+             }
+          2. Legacy JSON/string form (for backwards-compatibility with saved queries):
+             - JSON object  → find with that filter
+             - JSON array   → aggregate pipeline (or [collection, pipeline])
+             - Bare string  → find({}) on that collection name
         """
         import pymongo
         import json as _json
@@ -449,37 +467,134 @@ class ExecutionService:
             )
             mdb = client[database_name]
 
-            # Parse the MQL text — could be JSON, collection name, or native MQL
-            mql_stripped = mql.strip().strip(";").strip()
-            collection_name: Optional[str] = None
-            pipeline: Optional[List[Dict]] = None
-            find_filter: Optional[Dict] = None
-
-            if mql_stripped.startswith("["):
-                # Aggregation pipeline: ["collection_name", [{...}]]  OR  [{...}]
-                parsed = _json.loads(mql_stripped)
-                if parsed and isinstance(parsed[0], str):
-                    collection_name = parsed[0]
-                    pipeline = parsed[1] if len(parsed) > 1 else []
-                else:
-                    # Pipeline without collection name — take first collection
-                    collection_name = mdb.list_collection_names()[0] if mdb.list_collection_names() else "results"
-                    pipeline = parsed
-            elif mql_stripped.startswith("{"):
-                # Find filter object: {"field": "value"}
-                find_filter = _json.loads(mql_stripped)
-                collection_name = mdb.list_collection_names()[0] if mdb.list_collection_names() else "results"
+            # --- Resolve structured vs legacy MQL ---
+            if isinstance(mql, dict):
+                # New structured form
+                collection_name = mql.get("collection") or (
+                    mdb.list_collection_names()[0] if mdb.list_collection_names() else "documents"
+                )
+                operation = mql.get("operation", "find").lower()
+                filt = mql.get("filter") or {}
+                projection = mql.get("projection") or None
+                update = mql.get("update") or {}
+                document = mql.get("document") or {}
+                documents = mql.get("documents") or []
+                pipeline = mql.get("pipeline") or []
+                options = mql.get("options") or {}
             else:
-                # Bare collection name or unrecognised — do a find({}) on it
-                collection_name = mql_stripped.strip("`\"'")
-                find_filter = {}
+                # Legacy string form — parse for backwards compatibility
+                mql_stripped = str(mql).strip().strip(";").strip()
+                collection_name = None
+                pipeline = None
+                filt = {}
+                projection = None
+                update = {}
+                document = {}
+                documents = []
+                options = {}
+
+                if mql_stripped.startswith("["):
+                    parsed = _json.loads(mql_stripped)
+                    if parsed and isinstance(parsed[0], str):
+                        collection_name = parsed[0]
+                        pipeline = parsed[1] if len(parsed) > 1 else []
+                    else:
+                        collection_name = (
+                            mdb.list_collection_names()[0]
+                            if mdb.list_collection_names() else "results"
+                        )
+                        pipeline = parsed
+                    operation = "aggregate"
+                elif mql_stripped.startswith("{"):
+                    parsed_obj = _json.loads(mql_stripped)
+                    # Check if it's a full structured MQL object
+                    if "operation" in parsed_obj and "collection" in parsed_obj:
+                        collection_name = parsed_obj.get("collection")
+                        operation = parsed_obj.get("operation", "find").lower()
+                        filt = parsed_obj.get("filter") or {}
+                        projection = parsed_obj.get("projection") or None
+                        update = parsed_obj.get("update") or {}
+                        document = parsed_obj.get("document") or {}
+                        documents = parsed_obj.get("documents") or []
+                        pipeline = parsed_obj.get("pipeline") or []
+                    else:
+                        # Plain find filter object
+                        filt = parsed_obj
+                        collection_name = (
+                            mdb.list_collection_names()[0]
+                            if mdb.list_collection_names() else "results"
+                        )
+                        operation = "find"
+                else:
+                    collection_name = mql_stripped.strip("`\"'")
+                    operation = "find"
+                    filt = {}
 
             col = mdb[collection_name]
+            docs: List[Dict] = []
+            result_meta: Optional[Dict] = None  # for write operation results
 
-            if pipeline is not None:
+            # --- Dispatch operation ---
+            if operation == "find":
+                cursor = col.find(filt, projection).limit(max_rows + 1)
+                docs = list(cursor)
+
+            elif operation == "count":
+                count = col.count_documents(filt)
+                client.close()
+                elapsed_ms = int((time.time() - start) * 1000)
+                return ["count"], [[str(count)]], elapsed_ms, False
+
+            elif operation == "aggregate":
+                if not pipeline:
+                    pipeline = [{"$match": filt}]
                 docs = list(col.aggregate(pipeline))
+
+            elif operation == "insert_one":
+                res = col.insert_one(document)
+                client.close()
+                elapsed_ms = int((time.time() - start) * 1000)
+                return ["inserted_id", "acknowledged"], [[str(res.inserted_id), str(res.acknowledged)]], elapsed_ms, False
+
+            elif operation == "insert_many":
+                res = col.insert_many(documents)
+                client.close()
+                elapsed_ms = int((time.time() - start) * 1000)
+                ids = ", ".join(str(i) for i in res.inserted_ids)
+                return ["inserted_count", "inserted_ids"], [[str(len(res.inserted_ids)), ids]], elapsed_ms, False
+
+            elif operation in ("update_one", "update_many"):
+                if not update:
+                    raise ValueError(f"update field is required for {operation}.")
+                if operation == "update_one":
+                    res = col.update_one(filt, update)
+                else:
+                    res = col.update_many(filt, update)
+                client.close()
+                elapsed_ms = int((time.time() - start) * 1000)
+                return (
+                    ["matched_count", "modified_count", "acknowledged"],
+                    [[str(res.matched_count), str(res.modified_count), str(res.acknowledged)]],
+                    elapsed_ms, False
+                )
+
+            elif operation in ("delete_one", "delete_many"):
+                if operation == "delete_one":
+                    res = col.delete_one(filt)
+                else:
+                    res = col.delete_many(filt)
+                client.close()
+                elapsed_ms = int((time.time() - start) * 1000)
+                return (
+                    ["deleted_count", "acknowledged"],
+                    [[str(res.deleted_count), str(res.acknowledged)]],
+                    elapsed_ms, False
+                )
+
             else:
-                docs = list(col.find(find_filter or {}).limit(max_rows + 1))
+                # Unknown operation — fall back to find
+                logger.warning(f"Unknown MongoDB operation '{operation}', falling back to find.")
+                docs = list(col.find(filt).limit(max_rows + 1))
 
             client.close()
 
@@ -487,14 +602,13 @@ class ExecutionService:
                 truncated = True
                 docs = docs[:max_rows]
 
-            # Flatten docs into rows + columns
             if not docs:
                 elapsed_ms = int((time.time() - start) * 1000)
                 return [], [], elapsed_ms, truncated
 
-            # Collect all field names preserving insertion order
+            # Flatten docs into columnar rows
             all_keys: List[str] = []
-            seen = set()
+            seen: set = set()
             for doc in docs:
                 for k in doc.keys():
                     if k not in seen:
