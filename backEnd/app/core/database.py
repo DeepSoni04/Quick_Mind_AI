@@ -1,4 +1,5 @@
 import logging
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from app.core.config import settings
 
@@ -16,7 +17,10 @@ db_instance = Database()
 async def connect_to_mongo():
     """Connect to MongoDB and ensure indexes exist."""
     logger.info(f"Connecting to MongoDB at {settings.MONGODB_URI}...")
-    db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI)
+    try:
+        db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI, tlsCAFile=certifi.where())
+    except Exception:
+        db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI)
     db_instance.db = db_instance.client[settings.MONGODB_DATABASE]
     
     # Ensure minimum indexes
