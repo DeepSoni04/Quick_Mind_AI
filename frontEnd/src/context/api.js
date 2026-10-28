@@ -85,10 +85,30 @@ export async function authMe() {
   return apiFetch('/auth/me');
 }
 
-export async function updateProfile(name) {
+export async function updateProfile(profileData) {
+  const body = typeof profileData === 'string' ? { name: profileData } : profileData;
   return apiFetch('/auth/me', {
     method: 'PUT',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function changePassword(currentPassword, newPassword) {
+  return apiFetch('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+export async function toggleTwoFactor() {
+  return apiFetch('/auth/toggle-2fa', {
+    method: 'POST',
+  });
+}
+
+export async function regenerateApiToken() {
+  return apiFetch('/auth/regenerate-token', {
+    method: 'POST',
   });
 }
 

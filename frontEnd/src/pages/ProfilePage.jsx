@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import './ProfilePage.css';
 
@@ -91,17 +91,33 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState('profile');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
-  // Profile edit form state
+  // Profile edit form state — populated from MongoDB user document
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    title: user?.title || 'Data Analyst',
-    department: user?.department || 'Analytics & Data Platforms',
-    bio: user?.bio || 'QueryMind database engineer exploring automated NL query models.',
+    title: user?.title || (user?.role === 'admin' ? 'Lead Data Architect & AI Admin' : 'Database Analyst'),
+    department: user?.department || (user?.role === 'admin' ? 'Data Platform & AI Infrastructure' : 'Analytics & Data Platforms'),
+    bio: user?.bio || '',
     phone: user?.phone || '+91 98765 43210',
     location: user?.location || 'Ahmedabad, India',
     avatar: user?.avatar || 'DS',
   });
+
+  // Re-synchronize form whenever user record updates from MongoDB
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        name: user.name || '',
+        email: user.email || '',
+        title: user.title || (user.role === 'admin' ? 'Lead Data Architect & AI Admin' : 'Database Analyst'),
+        department: user.department || (user.role === 'admin' ? 'Data Platform & AI Infrastructure' : 'Analytics & Data Platforms'),
+        bio: user.bio || '',
+        phone: user.phone || '+91 98765 43210',
+        location: user.location || 'Ahmedabad, India',
+        avatar: user.avatar || 'DS',
+      });
+    }
+  }, [user]);
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -156,36 +172,34 @@ export default function ProfilePage() {
     }, 3200);
   };
 
-  /* ── Profile Update Handler ── */
-  const handleSaveProfile = (e) => {
+  /* ── Profile Update Handler (persists to MongoDB) ── */
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!profileForm.name.trim()) {
       triggerToast('Full name cannot be blank', 'error');
       return;
     }
-    if (!profileForm.email.trim()) {
-      triggerToast('Email address cannot be blank', 'error');
-      return;
-    }
 
     setIsSavingProfile(true);
-    setTimeout(() => {
-      const result = updateProfile({
+    try {
+      const result = await updateProfile({
         name: profileForm.name.trim(),
-        email: profileForm.email.trim(),
         title: profileForm.title.trim(),
         department: profileForm.department.trim(),
         bio: profileForm.bio.trim(),
         phone: profileForm.phone.trim(),
         location: profileForm.location.trim(),
       });
-      setIsSavingProfile(false);
       if (result.success) {
-        triggerToast('Profile updated successfully!');
+        triggerToast('Profile updated in MongoDB successfully!');
       } else {
         triggerToast(result.error || 'Failed to update profile', 'error');
       }
-    }, 350);
+    } catch (err) {
+      triggerToast(err.message || 'Failed to update profile', 'error');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   /* ── Reset Profile Changes ── */
@@ -193,18 +207,18 @@ export default function ProfilePage() {
     setProfileForm({
       name: user?.name || '',
       email: user?.email || '',
-      title: user?.title || 'Data Analyst',
-      department: user?.department || 'Analytics & Data Platforms',
+      title: user?.title || (user?.role === 'admin' ? 'Lead Data Architect & AI Admin' : 'Database Analyst'),
+      department: user?.department || (user?.role === 'admin' ? 'Data Platform & AI Infrastructure' : 'Analytics & Data Platforms'),
       bio: user?.bio || '',
       phone: user?.phone || '+91 98765 43210',
       location: user?.location || 'Ahmedabad, India',
       avatar: user?.avatar || 'DS',
     });
-    triggerToast('Profile form reset', 'info');
+    triggerToast('Profile form reset to database state', 'info');
   };
 
-  /* ── Password Change Handler ── */
-  const handlePasswordSubmit = (e) => {
+  /* ── Password Change Handler (persists to MongoDB) ── */
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setPwError('');
 
@@ -222,22 +236,25 @@ export default function ProfilePage() {
     }
 
     setIsUpdatingPw(true);
-    setTimeout(() => {
-      const res = changePassword(pwForm.currentPassword, pwForm.newPassword);
-      setIsUpdatingPw(false);
+    try {
+      const res = await changePassword(pwForm.currentPassword, pwForm.newPassword);
       if (res.success) {
         setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-        triggerToast('Password changed successfully!');
+        triggerToast('Password changed in database successfully!');
       } else {
         setPwError(res.error || 'Failed to update password');
       }
-    }, 400);
+    } catch (err) {
+      setPwError(err.message || 'Failed to update password');
+    } finally {
+      setIsUpdatingPw(false);
+    }
   };
 
-  /* ── 2FA Toggle Handler ── */
-  const handleToggle2FA = () => {
-    const newState = toggleTwoFactor();
-    triggerToast(newState ? 'Two-Factor Authentication enabled!' : 'Two-Factor Authentication disabled');
+  /* ── 2FA Toggle Handler (persists to MongoDB) ── */
+  const handleToggle2FA = async () => {
+    const newState = await toggleTwoFactor();
+    triggerToast(newState ? 'Two-Factor Authentication enabled in database!' : 'Two-Factor Authentication disabled');
   };
 
   /* ── Token Copy Handler ── */
@@ -250,12 +267,12 @@ export default function ProfilePage() {
     }
   };
 
-  /* ── Regenerate Token Handler ── */
-  const handleRegenerateToken = () => {
+  /* ── Regenerate Token Handler (persists to MongoDB) ── */
+  const handleRegenerateToken = async () => {
     if (window.confirm('Regenerate personal API token? Existing scripts using this key will immediately lose access.')) {
-      const newToken = regenerateApiToken();
+      const newToken = await regenerateApiToken();
       if (newToken) {
-        triggerToast('New API token generated successfully!');
+        triggerToast('New API token generated & saved in database!');
       }
     }
   };
@@ -437,14 +454,14 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div className="profile-field">
-                    <label className="profile-field-label">Email Address</label>
+                    <label className="profile-field-label">Email Address <span style={{ opacity: 0.65, fontSize: '11px', textTransform: 'none' }}>(Database Account ID)</span></label>
                     <input
                       type="email"
                       className="profile-input"
                       value={profileForm.email}
-                      onChange={(e) => setProfileForm((p) => ({ ...p, email: e.target.value }))}
-                      placeholder="e.g. deep@querymind.ai"
-                      required
+                      readOnly
+                      style={{ opacity: 0.75, cursor: 'not-allowed' }}
+                      title="Email is the primary database authentication key."
                     />
                   </div>
                 </div>
