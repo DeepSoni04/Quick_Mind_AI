@@ -82,8 +82,8 @@
 
 .login-tagline {
   font-size: 14px;
-  color: rgba(196, 218, 232, 0.50);
-  font-weight: 300;
+  color: #d5e5f5;
+  font-weight: 600;
   line-height: 1.65;
   max-width: 240px;
   margin-bottom: 22px;
@@ -103,17 +103,18 @@
 }
 
 .login-bullet-dot {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background-color: rgba(254, 239, 184, 0.55);
+  background-color: var(--accent-butter);
+  box-shadow: 0 0 8px rgba(254, 239, 184, 0.5);
   flex-shrink: 0;
 }
 
 .login-bullet-text {
   font-size: 13px;
-  color: rgba(196, 218, 232, 0.38);
-  font-weight: 300;
+  color: #ffffff;
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -130,9 +131,9 @@
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(196, 218, 232, 0.30);
+  color: var(--accent-butter);
   margin-bottom: 26px;
-  font-weight: 400;
+  font-weight: 700;
 }
 
 .login-form {
@@ -147,18 +148,19 @@
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(196, 218, 232, 0.40);
+  color: #d5e5f5;
   margin-bottom: 8px;
-  font-weight: 400;
+  font-weight: 700;
 }
 
 .login-input {
-  background: rgba(196, 218, 232, 0.03);
-  border: 1px solid rgba(196, 218, 232, 0.08);
+  background: rgba(196, 218, 232, 0.05);
+  border: 1px solid rgba(196, 218, 232, 0.18);
   border-radius: 7px;
   padding: 12px 15px;
-  color: var(--text-primary);
+  color: #ffffff;
   font-size: 14px;
+  font-weight: 600;
   font-family: var(--font-sans);
   outline: none;
   transition: all 0.28s ease;
@@ -178,14 +180,15 @@
 
 .login-link {
   font-size: 12px;
-  color: rgba(254, 239, 184, 0.60);
+  color: var(--accent-butter);
   text-decoration: none;
+  font-weight: 700;
   font-family: var(--font-sans);
   transition: color 0.2s ease;
 }
 
-.login-link:hover { color: rgba(254, 239, 184, 0.90); }
-.login-link--signup { font-weight: 700; margin-left: 5px; }
+.login-link:hover { color: #ffffff; }
+.login-link--signup { font-weight: 800; margin-left: 5px; }
 
 .login-error {
   background: var(--banner-danger-bg);
@@ -193,13 +196,14 @@
   border-radius: 6px;
   padding: 10px 14px;
   font-size: 12px;
-  color: rgba(224, 92, 74, 0.85);
+  font-weight: 600;
+  color: #f87171;
   animation: slideUp 0.25s ease-out both;
 }
 
 .login-submit-btn {
-  background: rgba(254, 239, 184, 0.88);
-  border: 1px solid rgba(254, 239, 184, 0.45);
+  background: rgba(254, 239, 184, 0.95);
+  border: 1px solid rgba(254, 239, 184, 0.60);
   border-radius: 7px;
   padding: 13px 20px;
   color: #2a1d1c;
@@ -211,6 +215,7 @@
   transition: all 0.2s ease;
   margin-top: 4px;
   font-family: var(--font-sans);
+  box-shadow: 0 0 16px rgba(254, 239, 184, 0.25);
 }
 
 .login-submit-btn:hover:not(:disabled) {
@@ -229,6 +234,7 @@
 }
 
 .login-signup-text {
-  font-size: 12px;
-  color: var(--text-muted);
+  font-size: 13px;
+  color: #d5e5f5;
+  font-weight: 600;
 }

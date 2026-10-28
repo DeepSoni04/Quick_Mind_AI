@@ -25,8 +25,8 @@
 
 .settings-header p {
   font-size: 13px;
-  color: var(--text-muted);
-  font-weight: 300;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .settings-body {
@@ -39,10 +39,11 @@
 }
 
 .settings-section-label {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(196, 218, 232, 0.28);
+  color: var(--accent-butter);
+  font-weight: 700;
   margin-bottom: 14px;
   display: block;
 }
@@ -59,7 +60,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 15px 22px;
-  border-bottom: 1px solid rgba(196, 218, 232, 0.04);
+  border-bottom: 1px solid rgba(196, 218, 232, 0.08);
 }
 
 .settings-row:last-child {
@@ -75,14 +76,14 @@
 
 .settings-row-label {
   font-size: 14px;
-  color: rgba(196, 218, 232, 0.72);
-  font-weight: 400;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .settings-row-hint {
   font-size: 12px;
-  color: rgba(196, 218, 232, 0.26);
-  font-weight: 300;
+  color: #d0e4f5;
+  font-weight: 600;
 }
 
 /* Custom toggle: 40×22px sliding switch */
@@ -101,13 +102,13 @@
 }
 
 .settings-toggle-track--on {
-  background: rgba(254, 239, 184, 0.50);
-  border-color: rgba(254, 239, 184, 0.38);
+  background: rgba(254, 239, 184, 0.65);
+  border-color: rgba(254, 239, 184, 0.60);
 }
 
 .settings-toggle-track--off {
-  background: rgba(196, 218, 232, 0.08);
-  border-color: rgba(196, 218, 232, 0.12);
+  background: rgba(196, 218, 232, 0.12);
+  border-color: rgba(196, 218, 232, 0.25);
 }
 
 .settings-toggle-thumb {
@@ -116,7 +117,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #c4dae8;
+  background: #ffffff;
   transition: left 0.3s ease;
 }
 
@@ -131,31 +132,34 @@
 
 /* Select input */
 .settings-select {
-  background: rgba(196, 218, 232, 0.04);
-  border: 1px solid rgba(196, 218, 232, 0.09);
+  background: rgba(196, 218, 232, 0.08);
+  border: 1px solid rgba(196, 218, 232, 0.20);
   border-radius: 6px;
-  padding: 6px 12px;
-  color: rgba(196, 218, 232, 0.65);
+  padding: 8px 14px;
+  color: #ffffff;
   font-size: 13px;
+  font-weight: 600;
   font-family: var(--font-sans);
   outline: none;
   cursor: pointer;
-  transition: border-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .settings-select option {
   background: #1e1413;
+  color: #ffffff;
 }
 
 .settings-select:focus {
-  border-color: rgba(254, 239, 184, 0.28);
+  border-color: rgba(254, 239, 184, 0.45);
 }
 
 /* Account row mono values */
 .settings-mono-value {
   font-family: var(--font-mono);
   font-size: 13px;
-  color: rgba(196, 218, 232, 0.40);
+  color: #d0e4f5;
+  font-weight: 600;
 }
 
 /* Role badge */
@@ -173,7 +177,7 @@
 /* About footer text */
 .settings-about-footer {
   font-size: 12px;
-  color: rgba(196, 218, 232, 0.22);
+  color: #d0e4f5;
   line-height: 1.65;
-  font-weight: 300;
+  font-weight: 600;
 }

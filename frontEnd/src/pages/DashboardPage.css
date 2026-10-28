@@ -29,8 +29,8 @@
 
 .dashboard-header-left p {
   font-size: 13px;
-  color: var(--text-muted);
-  font-weight: 300;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .dashboard-live-badge {
@@ -38,8 +38,8 @@
   align-items: center;
   gap: 7px;
   padding: 5px 12px;
-  background: rgba(61, 184, 122, 0.07);
-  border: 1px solid rgba(61, 184, 122, 0.18);
+  background: rgba(61, 184, 122, 0.12);
+  border: 1px solid rgba(61, 184, 122, 0.30);
   border-radius: 100px;
 }
 
@@ -53,11 +53,11 @@
 }
 
 .dashboard-live-text {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(61, 184, 122, 0.72);
+  color: #4ee69a;
 }
 
 /* ── Body ────────────────────────────────── */
@@ -87,30 +87,30 @@
 }
 
 .dashboard-stat-label {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.13em;
   text-transform: uppercase;
-  color: var(--text-muted);
-  font-weight: 400;
+  color: var(--text-secondary);
+  font-weight: 700;
 }
 
 .dashboard-stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-primary);
+  font-size: 30px;
+  font-weight: 800;
+  color: #ffffff;
   letter-spacing: -0.02em;
   line-height: 1;
 }
 
 .dashboard-stat-value--crimson { color: var(--accent-butter); }
-.dashboard-stat-value--green   { color: var(--accent-green); }
-.dashboard-stat-value--red     { color: var(--text-red); }
-.dashboard-stat-value--blue    { color: var(--accent-blue); }
+.dashboard-stat-value--green   { color: #4ee69a; }
+.dashboard-stat-value--red     { color: #f87171; }
+.dashboard-stat-value--blue    { color: #ffffff; }
 
 .dashboard-stat-sub {
-  font-size: 11px;
-  color: var(--text-very-muted);
-  font-weight: 300;
+  font-size: 12px;
+  color: #d0e4f5;
+  font-weight: 600;
 }
 
 /* ── Section header ──────────────────────── */
@@ -122,25 +122,29 @@
 }
 
 .dashboard-section-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  color: rgba(196, 218, 232, 0.65);
+  color: #ffffff;
   letter-spacing: -0.01em;
 }
 
 .btn-view-all {
-  font-size: 12px;
-  color: rgba(254, 239, 184, 0.60);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-butter);
   background: none;
   border: none;
   cursor: pointer;
   font-family: var(--font-sans);
   padding: 0;
   outline: none;
-  transition: color 0.2s;
+  transition: all 0.2s;
 }
 
-.btn-view-all:hover { color: rgba(254, 239, 184, 0.90); }
+.btn-view-all:hover {
+  color: #ffffff;
+  transform: translateX(2px);
+}
 
 /* ── Recent Queries list ─────────────────── */
 .dashboard-recent-list {
@@ -158,25 +162,26 @@
   border: 1px solid transparent;
   background: var(--bg-card-default);
   animation: slideUp 0.38s ease-out both;
-  transition: border-color 0.18s;
+  transition: all 0.18s;
 }
 
 .dashboard-recent-row:hover {
-  border-color: rgba(196, 218, 232, 0.06);
+  border-color: rgba(196, 218, 232, 0.15);
+  background: rgba(62, 43, 41, 0.95);
 }
 
 .dashboard-recent-user {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(254, 239, 184, 0.10);
-  border: 1px solid rgba(254, 239, 184, 0.20);
+  background: rgba(254, 239, 184, 0.14);
+  border: 1px solid rgba(254, 239, 184, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
-  font-weight: 700;
-  color: rgba(254, 239, 184, 0.72);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent-butter);
   flex-shrink: 0;
 }
 
@@ -189,16 +194,18 @@
 }
 
 .dashboard-recent-query {
-  font-size: 13px;
-  color: rgba(196, 218, 232, 0.70);
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .dashboard-recent-meta {
-  font-size: 11px;
-  color: var(--text-very-muted);
+  font-size: 12px;
+  color: #d0e4f5;
+  font-weight: 600;
   font-family: var(--font-mono);
 }
 
@@ -210,8 +217,9 @@
 }
 
 .dashboard-recent-time {
-  font-size: 11px;
-  color: var(--text-ultra-muted);
+  font-size: 12px;
+  color: #d0e4f5;
+  font-weight: 600;
 }
 
 /* status chips */
@@ -269,16 +277,17 @@
 }
 
 .dashboard-db-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  color: rgba(196, 218, 232, 0.80);
+  color: #ffffff;
   margin-bottom: 3px;
 }
 
 .dashboard-db-type {
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-mono);
-  color: var(--text-very-muted);
+  color: #d0e4f5;
+  font-weight: 600;
 }
 
 .dashboard-db-stats {
@@ -297,31 +306,34 @@
 .dashboard-db-stat-value {
   font-size: 14px;
   font-weight: 700;
-  color: rgba(196, 218, 232, 0.56);
+  color: var(--accent-butter);
   font-family: var(--font-mono);
 }
 
 .dashboard-db-stat-label {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-ultra-muted);
+  color: var(--text-secondary);
+  font-weight: 700;
 }
 
 .btn-manage-db {
-  padding: 6px 14px;
-  background: rgba(196, 218, 232, 0.03);
-  border: 1px solid rgba(196, 218, 232, 0.08);
+  padding: 7px 15px;
+  background: rgba(196, 218, 232, 0.08);
+  border: 1px solid rgba(196, 218, 232, 0.20);
   border-radius: 6px;
-  color: rgba(196, 218, 232, 0.40);
+  color: #ffffff;
   font-size: 12px;
+  font-weight: 600;
   font-family: var(--font-sans);
   cursor: pointer;
   outline: none;
-  transition: all 0.18s ease;
+  transition: all 0.2s ease;
 }
 
 .btn-manage-db:hover {
-  background: rgba(196, 218, 232, 0.07);
-  color: rgba(196, 218, 232, 0.68);
+  background: rgba(196, 218, 232, 0.16);
+  border-color: rgba(196, 218, 232, 0.35);
+  color: #ffffff;
 }

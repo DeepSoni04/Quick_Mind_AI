@@ -1,11 +1,11 @@
 /* ===== QueryMind AI — Global Design System ===== */
-@import url('https://fonts.googleapis.com/css2?family=Oxygen:wght@300;400;700&family=Oxygen+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oxygen:wght@400;700&family=Oxygen+Mono:wght@400;700&display=swap');
 
 /* ---------- Design System Variables ---------- */
 :root {
   /* Fonts */
-  --font-sans: 'Oxygen', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'Oxygen Mono', monospace;
+  --font-sans: 'Inter', 'Oxygen', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Oxygen Mono', 'JetBrains Mono', 'Fira Code', monospace;
 
   /*
    * Palette:
@@ -15,8 +15,8 @@
    *
    * Design intent:
    *   • Chocopie brown is the canvas — deep, warm, premium dark
-   *   • Blue (#c4dae8) replaces the old ice-blue / light text role — it reads crisp against brown
-   *   • Butter (#feefb8) replaces the crimson accent role — it warms up the palette, draws the eye
+   *   • Pure white (#ffffff) and crisp ice tints provide high-contrast, crystal-clear readability
+   *   • Butter (#feefb8) warms up the palette, draws the eye to primary CTAs and headings
    *   • Status colors (green/amber/red) kept for semantic meaning, hue-shifted to harmonize
    */
 
@@ -25,84 +25,84 @@
   --bg-sidebar:           #1e1413;
   --bg-card-default:      rgba(55, 37, 36, 0.70);
   --bg-card-focused:      rgba(62, 43, 41, 0.97);
-  --border-card-default:  rgba(196, 218, 232, 0.06);
-  --border-card-hover:    rgba(196, 218, 232, 0.11);
-  --divider-line:         rgba(196, 218, 232, 0.06);
-  --divider-row:          rgba(196, 218, 232, 0.04);
+  --border-card-default:  rgba(196, 218, 232, 0.08);
+  --border-card-hover:    rgba(196, 218, 232, 0.18);
+  --divider-line:         rgba(196, 218, 232, 0.08);
+  --divider-row:          rgba(196, 218, 232, 0.06);
 
   /* Primary Accent — Butter / warm gold */
   --accent-butter:           #feefb8;
   --accent-butter-hover:     #fff3c5;
-  --btn-butter-bg:           rgba(254, 239, 184, 0.88);
+  --btn-butter-bg:           rgba(254, 239, 184, 0.92);
   --btn-butter-hover:        rgba(255, 243, 197, 1.0);
-  --btn-butter-border:       rgba(254, 239, 184, 0.45);
-  --btn-butter-glow:         0 0 22px rgba(254, 239, 184, 0.22);
-  --input-focus-border:      rgba(254, 239, 184, 0.35);
-  --input-focus-bg:          rgba(254, 239, 184, 0.04);
-  --input-focus-glow:        0 0 18px rgba(254, 239, 184, 0.08);
-  --surface-tint-butter:     rgba(254, 239, 184, 0.07);
-  --rim-butter-start:        rgba(254, 239, 184, 0.50);
-  --sidebar-active-glow:     0 0 8px rgba(254, 239, 184, 0.55);
+  --btn-butter-border:       rgba(254, 239, 184, 0.60);
+  --btn-butter-glow:         0 0 24px rgba(254, 239, 184, 0.30);
+  --input-focus-border:      rgba(254, 239, 184, 0.45);
+  --input-focus-bg:          rgba(254, 239, 184, 0.06);
+  --input-focus-glow:        0 0 20px rgba(254, 239, 184, 0.12);
+  --surface-tint-butter:     rgba(254, 239, 184, 0.10);
+  --rim-butter-start:        rgba(254, 239, 184, 0.65);
+  --sidebar-active-glow:     0 0 10px rgba(254, 239, 184, 0.65);
 
   /* Secondary Accent — Blue */
   --accent-blue:             #c4dae8;
-  --node-blue-bg:            rgba(196, 218, 232, 0.08);
-  --node-blue-border:        rgba(196, 218, 232, 0.32);
-  --node-blue-glow:          0 0 22px rgba(196, 218, 232, 0.14);
+  --node-blue-bg:            rgba(196, 218, 232, 0.12);
+  --node-blue-border:        rgba(196, 218, 232, 0.40);
+  --node-blue-glow:          0 0 22px rgba(196, 218, 232, 0.20);
   --flow-particle-blue:      rgba(196, 218, 232, 1);
-  --ambient-overlay-blue:    rgba(196, 218, 232, 0.03);
-  --badge-select-bg:         rgba(196, 218, 232, 0.07);
-  --badge-select-border:     rgba(196, 218, 232, 0.16);
-  --badge-select-text:       rgba(196, 218, 232, 0.70);
-  --badge-role-bg:           rgba(196, 218, 232, 0.08);
-  --badge-role-border:       rgba(196, 218, 232, 0.20);
-  --badge-role-text:         rgba(196, 218, 232, 0.80);
+  --ambient-overlay-blue:    rgba(196, 218, 232, 0.04);
+  --badge-select-bg:         rgba(196, 218, 232, 0.12);
+  --badge-select-border:     rgba(196, 218, 232, 0.28);
+  --badge-select-text:       #ffffff;
+  --badge-role-bg:           rgba(196, 218, 232, 0.12);
+  --badge-role-border:       rgba(196, 218, 232, 0.30);
+  --badge-role-text:         #ffffff;
 
-  /* Success Green — slightly desaturated/warmed to blend with brown bg */
+  /* Success Green */
   --accent-green:            #3db87a;
-  --status-green-glow:       0 0 10px rgba(61, 184, 122, 0.55);
-  --banner-success-bg:       rgba(61, 184, 122, 0.07);
-  --banner-success-border:   rgba(61, 184, 122, 0.20);
-  --conn-card-border:        rgba(61, 184, 122, 0.16);
-  --btn-confirm-bg:          rgba(61, 184, 122, 0.11);
-  --btn-confirm-border:      rgba(61, 184, 122, 0.28);
-  --btn-confirm-text:        rgba(61, 184, 122, 0.88);
+  --status-green-glow:       0 0 12px rgba(61, 184, 122, 0.65);
+  --banner-success-bg:       rgba(61, 184, 122, 0.10);
+  --banner-success-border:   rgba(61, 184, 122, 0.30);
+  --conn-card-border:        rgba(61, 184, 122, 0.25);
+  --btn-confirm-bg:          rgba(61, 184, 122, 0.16);
+  --btn-confirm-border:      rgba(61, 184, 122, 0.38);
+  --btn-confirm-text:        #4ee69a;
 
-  /* Danger Red — kept vivid for safety semantics */
+  /* Danger Red */
   --accent-red:              #c0392b;
-  --text-red:                #e05c4a;
-  --badge-danger-bg:         rgba(192, 57, 43, 0.12);
-  --badge-danger-border:     rgba(192, 57, 43, 0.22);
-  --btn-danger-bg:           rgba(192, 57, 43, 0.13);
-  --btn-danger-border:       rgba(192, 57, 43, 0.35);
-  --card-danger-border:      rgba(192, 57, 43, 0.20);
-  --status-red-glow:         0 0 10px rgba(192, 57, 43, 0.65);
-  --diff-before-bg:          rgba(192, 57, 43, 0.07);
-  --diff-before-border:      rgba(192, 57, 43, 0.14);
-  --banner-danger-bg:        rgba(192, 57, 43, 0.07);
-  --banner-danger-border:    rgba(192, 57, 43, 0.20);
+  --text-red:                #f87171;
+  --badge-danger-bg:         rgba(192, 57, 43, 0.16);
+  --badge-danger-border:     rgba(192, 57, 43, 0.32);
+  --btn-danger-bg:           rgba(192, 57, 43, 0.18);
+  --btn-danger-border:       rgba(192, 57, 43, 0.45);
+  --card-danger-border:      rgba(192, 57, 43, 0.28);
+  --status-red-glow:         0 0 12px rgba(192, 57, 43, 0.75);
+  --diff-before-bg:          rgba(192, 57, 43, 0.10);
+  --diff-before-border:      rgba(192, 57, 43, 0.22);
+  --banner-danger-bg:        rgba(192, 57, 43, 0.10);
+  --banner-danger-border:    rgba(192, 57, 43, 0.28);
 
-  /* Warning Amber — warmed to complement butter palette */
+  /* Warning Amber */
   --accent-amber:            #e8a84a;
-  --badge-update-bg:         rgba(232, 168, 74, 0.08);
-  --badge-update-border:     rgba(232, 168, 74, 0.18);
-  --badge-update-text:       rgba(232, 168, 74, 0.72);
-  --badge-pending-bg:        rgba(232, 168, 74, 0.10);
-  --badge-pending-border:    rgba(232, 168, 74, 0.20);
-  --badge-pending-text:      #e8a84a;
+  --badge-update-bg:         rgba(232, 168, 74, 0.12);
+  --badge-update-border:     rgba(232, 168, 74, 0.28);
+  --badge-update-text:       #fcd34d;
+  --badge-pending-bg:        rgba(232, 168, 74, 0.14);
+  --badge-pending-border:    rgba(232, 168, 74, 0.30);
+  --badge-pending-text:      #fbbf24;
 
-  /* Text Hierarchy — derived from Blue (#c4dae8) */
-  --text-primary:            #c4dae8;
-  --text-primary-alt:        #b8d0e0;
-  --text-body:               rgba(196, 218, 232, 0.80);
-  --text-secondary:          rgba(196, 218, 232, 0.60);
-  --text-secondary-dim:      rgba(196, 218, 232, 0.46);
-  --text-muted:              rgba(196, 218, 232, 0.34);
-  --text-muted-dim:          rgba(196, 218, 232, 0.28);
-  --text-very-muted:         rgba(196, 218, 232, 0.22);
-  --text-ultra-muted:        rgba(196, 218, 232, 0.17);
-  --sidebar-inactive:        rgba(196, 218, 232, 0.30);
-  --sidebar-active:          rgba(254, 239, 184, 0.95);
+  /* Text Hierarchy — High contrast, vivid semibold legibility against dark chocolate canvas */
+  --text-primary:            #ffffff;
+  --text-primary-alt:        #f1f5f9;
+  --text-body:               rgba(255, 255, 255, 0.94);
+  --text-secondary:          #d5e5f5;
+  --text-secondary-dim:      #b8d3ea;
+  --text-muted:              #9ec0dc;
+  --text-muted-dim:          #85abd0;
+  --text-very-muted:         #7398bd;
+  --text-ultra-muted:        rgba(196, 218, 232, 0.50);
+  --sidebar-inactive:        rgba(224, 238, 250, 0.72);
+  --sidebar-active:          #feefb8;
 }
 
 /* ---------- Global Reset & Body ---------- */
@@ -118,6 +118,7 @@ html, body {
   background-color: var(--bg-page);
   color: var(--text-primary);
   font-family: var(--font-sans);
+  font-weight: 500;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
@@ -129,6 +130,34 @@ html, body {
   display: flex;
   background-color: var(--bg-page);
   position: relative;
+}
+
+/* Headings & Text Weight Boost */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.015em;
+}
+
+p {
+  font-weight: 500;
+  color: var(--text-body);
+}
+
+label, .label {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+input, textarea, select {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+button {
+  font-family: var(--font-sans);
+  font-weight: 600;
 }
 
 /* ---------- Typography Utilities ---------- */

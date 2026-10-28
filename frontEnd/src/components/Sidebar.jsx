@@ -23,7 +23,7 @@ export default function Sidebar() {
     navigate('/login');
   };
 
-  const topNavItems = [
+  const navItems = [
     {
       id: 'query', label: 'Query', to: '/workspace', active: isQueryActive,
       icon: (
@@ -87,9 +87,6 @@ export default function Sidebar() {
         </svg>
       ),
     }] : []),
-  ];
-
-  const bottomNavItems = [
     {
       id: 'settings', label: 'Settings', to: '/settings', active: isSettingsActive,
       icon: (
@@ -134,27 +131,14 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Top navigation */}
+      {/* Navigation */}
       <nav className="sidebar__nav">
-        {topNavItems.map(renderItem)}
+        {/* Main navigation flex: query, dashboard, history, saved, connect, admin, settings */}
+        <div className="sidebar__nav-group">
+          {navItems.map(renderItem)}
+        </div>
 
-        {/* Bottom-pinned settings */}
-        {bottomNavItems.map((item) => (
-          <div key={item.id} className="sidebar__item-wrapper sidebar__item-wrapper--bottom">
-            <button
-              type="button"
-              className={`sidebar__item ${item.active ? 'sidebar__item--active' : ''}`}
-              onClick={() => navigate(item.to)}
-              title={item.label}
-            >
-              {item.active && <div className="sidebar__indicator" />}
-              <span className="sidebar__item-icon">{item.icon}</span>
-              <span className="sidebar__item-label">{item.label}</span>
-            </button>
-          </div>
-        ))}
-
-        {/* User profile + Logout */}
+        {/* User profile + Logout bottom flex: account, exit */}
         <div className="sidebar__user-section">
           <button
             type="button"
@@ -168,16 +152,18 @@ export default function Sidebar() {
           </button>
           <button
             type="button"
-            className="sidebar__logout-btn"
+            className="sidebar__item sidebar__item--logout"
             onClick={handleLogout}
-            title="Sign out"
+            title="Sign out / Exit"
           >
-            <svg className="sidebar__logout-icon" viewBox="0 0 17 17" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 12v2.5H3V2.5h8V5" />
-              <polyline points="9 8.5 14 8.5" />
-              <polyline points="12 6.5 14 8.5 12 10.5" />
-            </svg>
-            Logout
+            <span className="sidebar__item-icon">
+              <svg viewBox="0 0 17 17" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6.5 2.5 H3 a1 1 0 0 0 -1 1 v10 a1 1 0 0 0 1 1 h3.5" />
+                <polyline points="11.5 5 15 8.5 11.5 12" />
+                <line x1="15" y1="8.5" x2="6" y2="8.5" />
+              </svg>
+            </span>
+            <span className="sidebar__item-label">Exit</span>
           </button>
         </div>
       </nav>
