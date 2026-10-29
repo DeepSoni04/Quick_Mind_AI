@@ -457,15 +457,244 @@ function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate 
   );
 }
 
+// ─── Image Lightbox Modal ─────────────────────────────────────────────────────
+function ImageLightboxModal({ imageUrl, title, onClose }) {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  if (!imageUrl) return null;
+
+  return (
+    <div className="image-lightbox-overlay" onClick={onClose}>
+      <div className="image-lightbox-card" onClick={(e) => e.stopPropagation()}>
+        <div className="image-lightbox-header">
+          <div className="image-lightbox-title-wrap">
+            <span className="image-lightbox-badge">IMAGE PREVIEW</span>
+            <span className="image-lightbox-title">{title || 'Media Asset'}</span>
+          </div>
+          <div className="image-lightbox-actions">
+            <a
+              href={imageUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="image-lightbox-btn"
+              title="Open full resolution in new tab"
+            >
+              Open Full Size ↗
+            </a>
+            <button type="button" className="image-lightbox-close" onClick={onClose} title="Close (Esc)">
+              ✕
+            </button>
+          </div>
+        </div>
+        <div className="image-lightbox-body">
+          <img src={imageUrl} alt={title || 'Preview'} className="image-lightbox-img" />
+        </div>
+        <div className="image-lightbox-footer">
+          <span className="image-lightbox-url" title={imageUrl}>{imageUrl}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Intelligent Table Cell with Image & Flex-Wrap Support ────────────────────
+function getImageInfo(val, colName) {
+  if (val === null || val === undefined) return null;
+  const s = String(val).trim();
+  if (!s) return null;
+  const col = (colName || '').toLowerCase();
+
+  const hasImgExt = /\.(jpg|jpeg|png|gif|webp|svg|avif|bmp)(\?.*)?$/i.test(s);
+  const isDataImg = s.startsWith('data:image/');
+  const isKnownImgHost = /(image\.tmdb\.org|images\.unsplash\.com|res\.cloudinary\.com|i\.imgur\.com|media\.giphy\.com)/i.test(s);
+  const isImgCol = col.includes('poster') || col.includes('backdrop') || col.includes('image') || col.includes('photo') || col.includes('avatar') || col.includes('thumbnail') || col.includes('picture') || col.includes('logo');
+
+  if (isDataImg) return { thumb: s, full: s };
+  if (s.startsWith('http://') || s.startsWith('https://')) {
+    if (hasImgExt || isKnownImgHost || isImgCol) {
+      return { thumb: s, full: s };
+    }
+  }
+  // TMDB or relative image path e.g. /1n37BJchWHLiSYQkuFxe5KjB951.jpg
+  if (s.startsWith('/') && (hasImgExt || isImgCol)) {
+    return {
+      thumb: `https://image.tmdb.org/t/p/w200${s}`,
+      full: `https://image.tmdb.org/t/p/original${s}`
+    };
+  }
+  return null;
+}
+
+function DataTableCell({ val, colName, onImageClick }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (val === null || val === undefined) {
+    return <span className="cell-null">NULL</span>;
+  }
+
+  // 1. Check Image
+  const imgInfo = getImageInfo(val, colName);
+  if (imgInfo) {
+    const rawStr = String(val);
+    return (
+      <div className="cell-img-preview-group">
+        <div
+          className="cell-img-thumb-box"
+          onClick={() => onImageClick(imgInfo.full, colName)}
+          title={`Click to view full image (${rawStr})`}
+        >
+          <img
+            src={imgInfo.thumb}
+            alt={colName}
+            className="cell-img-thumb"
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              if (e.currentTarget.nextElementSibling) {
+                e.currentTarget.nextElementSibling.style.display = 'inline-flex';
+              }
+            }}
+          />
+          <span className="cell-img-fallback" style={{ display: 'none' }}>
+            🖼️ Image
+          </span>
+          <span className="cell-img-zoom-hint" title="Zoom">🔍 Full Preview</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Check JSON / Object / Array
+  let parsedJson = null;
+  if (typeof val === 'object') {
+    parsedJson = val;
+  } else if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        parsedJson = JSON.parse(trimmed);
+      } catch {
+        parsedJson = null;
+      }
+    }
+  }
+
+  if (parsedJson) {
+    if (Array.isArray(parsedJson)) {
+      if (parsedJson.length === 0) {
+        return <span className="cell-empty-array">[]</span>;
+      }
+      return (
+        <div className="cell-flex-wrap">
+          {parsedJson.map((item, idx) => {
+            const label = item && typeof item === 'object'
+              ? (item.name || item.title || item.label || JSON.stringify(item))
+              : String(item);
+            return (
+              <span key={idx} className="cell-chip" title={label}>
+                {label}
+              </span>
+            );
+          })}
+        </div>
+      );
+    } else if (typeof parsedJson === 'object' && parsedJson !== null) {
+      const entries = Object.entries(parsedJson);
+      if (entries.length === 0) {
+        return <span className="cell-empty-obj">&#123;&#125;</span>;
+      }
+      const visibleEntries = expanded ? entries : entries.slice(0, 5);
+      return (
+        <div className="cell-flex-wrap">
+          {visibleEntries.map(([k, v], idx) => {
+            const strVal = typeof v === 'object' ? JSON.stringify(v) : String(v);
+            return (
+              <span key={idx} className="cell-chip cell-chip--kv" title={`${k}: ${strVal}`}>
+                <span className="cell-chip-key">{k}</span>
+                <span className="cell-chip-val">{strVal.length > 14 ? strVal.slice(0, 12) + '…' : strVal}</span>
+              </span>
+            );
+          })}
+          {entries.length > 5 && (
+            <button
+              type="button"
+              className="cell-chip-more"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? '▲ Less' : `+${entries.length - 5} more`}
+            </button>
+          )}
+        </div>
+      );
+    }
+  }
+
+  // 3. Boolean
+  if (val === true || val === false || val === 'true' || val === 'false') {
+    const isTrue = val === true || val === 'true';
+    return (
+      <span className={`cell-badge-bool ${isTrue ? 'cell-badge-bool--true' : 'cell-badge-bool--false'}`}>
+        {isTrue ? 'TRUE' : 'FALSE'}
+      </span>
+    );
+  }
+
+  const strVal = String(val);
+
+  // 4. Long text (e.g., overview, description, notes)
+  if (strVal.length > 80) {
+    return (
+      <div className="cell-flex-wrap cell-flex-wrap--longtext">
+        <span className="cell-long-text">
+          {expanded ? strVal : strVal.slice(0, 80) + '…'}
+        </span>
+        <button
+          type="button"
+          className="cell-chip-more"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? '▲ Less' : '▼ Read more'}
+        </button>
+      </div>
+    );
+  }
+
+  // 5. MongoDB ObjectId / UUID / ID column
+  const isId = (colName || '').toLowerCase().includes('id') || /^[a-f\d]{24}$/i.test(strVal);
+  if (isId) {
+    return <span className="cell-mono-text" title={strVal}>{strVal}</span>;
+  }
+
+  // 6. Default clean cell content in flex-wrap container
+  return (
+    <div className="cell-flex-wrap">
+      <span className="cell-plain-text">{strVal}</span>
+    </div>
+  );
+}
+
 // ─── Screen 4: Dynamic Results Screen ─────────────────────────────────────────
 function ResultScreen({ query, data, onNewQuery, onRegenerate, queryId }) {
   const [isExporting, setIsExporting] = useState(false);
+  const [lightboxImg, setLightboxImg] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const columns = data?.columns || [];
   const rows = data?.rows || [];
   const rowCount = data?.row_count ?? rows.length;
   const execTime = data?.execution_time_ms ?? 0;
   const summary = data?.summary || `${rowCount} records returned.`;
+
+  // Search filter across all row cells
+  const filteredRows = searchTerm.trim()
+    ? rows.filter(r => r.some(c => String(c ?? '').toLowerCase().includes(searchTerm.toLowerCase())))
+    : rows;
 
   const handleDownloadCSV = async () => {
     if (!queryId) return;
@@ -496,9 +725,33 @@ function ResultScreen({ query, data, onNewQuery, onRegenerate, queryId }) {
             <span className="result-status-text">{rowCount} records ({execTime}ms)</span>
           </div>
           <span className="result-query-text">{query}</span>
-          <p style={{ color: 'rgba(254,239,184,0.8)', fontSize: 12, marginTop: 4, fontStyle: 'italic' }}>{summary}</p>
+          <p className="result-summary-text">{summary}</p>
         </div>
+
         <div className="result-header-actions">
+          {rows.length > 0 && (
+            <div className="result-search-box">
+              <span className="result-search-icon">🔍</span>
+              <input
+                type="text"
+                placeholder="Filter results…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="result-search-input"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  className="result-search-clear"
+                  onClick={() => setSearchTerm('')}
+                  title="Clear filter"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
           <button type="button" className="btn-regenerate" onClick={onRegenerate}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 6.5A4.5 4.5 0 0 1 6.5 2" />
@@ -525,29 +778,50 @@ function ResultScreen({ query, data, onNewQuery, onRegenerate, queryId }) {
           <table className="result-table">
             <thead>
               <tr>
+                <th className="result-th result-th--index">#</th>
                 {columns.map((col) => (
                   <th key={col} className="result-th">{col}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((rowArr, i) => (
-                <tr key={i} className="result-row" style={{ animation: `fadeRow 0.38s ease-out ${Math.min(i * 0.03, 1)}s both` }}>
+              {filteredRows.map((rowArr, i) => (
+                <tr key={i} className="result-row">
+                  <td className="result-td result-td--index">{i + 1}</td>
                   {rowArr.map((val, cellIdx) => (
                     <td key={cellIdx} className="result-td">
-                      {val === null || val === undefined ? <span style={{ color: 'rgba(255,255,255,0.2)' }}>NULL</span> : String(val)}
+                      <DataTableCell
+                        val={val}
+                        colName={columns[cellIdx]}
+                        onImageClick={(url, name) => setLightboxImg({ url, title: name })}
+                      />
                     </td>
                   ))}
                 </tr>
               ))}
+              {filteredRows.length === 0 && (
+                <tr>
+                  <td colSpan={columns.length + 1} className="result-td--empty-search">
+                    No matching records found for "{searchTerm}"
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         ) : (
-          <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
+          <div className="result-empty-state">
             Operation executed successfully. {rowCount} rows affected.
           </div>
         )}
       </div>
+
+      {lightboxImg && (
+        <ImageLightboxModal
+          imageUrl={lightboxImg.url}
+          title={lightboxImg.title}
+          onClose={() => setLightboxImg(null)}
+        />
+      )}
     </div>
   );
 }
