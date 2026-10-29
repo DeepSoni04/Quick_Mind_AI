@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # LLM Provider Configuration
     LLM_PROVIDER: str = "gemini"
     LLM_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     # Optional fallback LLM providers (leave blank if not available)
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None

@@ -473,8 +473,10 @@ class ExecutionService:
                 collection_name = mql.get("collection") or (
                     mdb.list_collection_names()[0] if mdb.list_collection_names() else "documents"
                 )
-                operation = mql.get("operation", "find").lower()
-                filt = mql.get("filter") or {}
+                operation = (mql.get("operation") or "find").lower()
+                if operation in ("select", "read", "query", "get"):
+                    operation = "find"
+                filt = mql.get("filter") if mql.get("filter") is not None else (mql.get("query") or {})
                 projection = mql.get("projection") or None
                 update = mql.get("update") or {}
                 document = mql.get("document") or {}

@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional
 import httpx
@@ -133,8 +134,9 @@ class LLMProvider:
 class GeminiProvider(LLMProvider):
     """Google Gemini LLM provider implementation using official API."""
 
-    def __init__(self, api_key: str = ""):
-        self.api_key = api_key or settings.LLM_API_KEY
+    def __init__(self, api_key: str = "", model: str = ""):
+        self.api_key = api_key or settings.LLM_API_KEY or os.getenv("GEMINI_API_KEY", "")
+        self.model = model or getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash") or "gemini-2.5-flash"
 
     def is_available(self) -> bool:
         return bool(self.api_key and self.api_key.strip())
@@ -160,7 +162,7 @@ class GeminiProvider(LLMProvider):
         if session_context:
             user_content = f"Session History:\n{json.dumps(session_context)}\n\nCurrent Request: {nl_query}"
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={self.api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
         payload = {
             "contents": [
                 {"role": "user", "parts": [{"text": f"{system_prompt}\n\n{user_content}"}]}
@@ -175,7 +177,14 @@ class GeminiProvider(LLMProvider):
             resp = await client.post(url, json=payload)
             if resp.status_code == 200:
                 data = resp.json()
-                text_out = data["candidates"][0]["content"]["parts"][0]["text"]
+                text_out = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                if text_out.startswith("```"):
+                    lines = text_out.splitlines()
+                    if lines and lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].startswith("```"):
+                        lines = lines[:-1]
+                    text_out = "\n".join(lines).strip()
                 parsed = json.loads(text_out)
                 return parsed
             else:
@@ -195,12 +204,12 @@ class GeminiProvider(LLMProvider):
 
         try:
             prompt = f"Summarize the query results in 1 friendly sentence:\nQuestion: {nl_query}\nRow Count: {row_count}"
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={self.api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
             payload = {
                 "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 60}
+                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 250}
             }
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
