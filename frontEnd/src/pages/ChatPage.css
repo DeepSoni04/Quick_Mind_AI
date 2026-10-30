@@ -1153,23 +1153,45 @@
 .action-viewport {
   position: relative;
   width: 100%;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  height: 100%;
+  max-height: 100vh;
+  overflow-y: auto;
   background-color: var(--bg-page);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 0 32px;
+  justify-content: flex-start;
+  padding: 36px 32px 48px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 218, 232, 0.25) transparent;
+}
+
+.action-viewport::-webkit-scrollbar {
+  width: 7px;
+}
+
+.action-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.action-viewport::-webkit-scrollbar-thumb {
+  background: rgba(196, 218, 232, 0.25);
+  border-radius: 4px;
+}
+
+.action-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(196, 218, 232, 0.45);
 }
 
 .action-content {
   position: relative;
   z-index: 10;
   width: 100%;
-  max-width: 540px;
+  max-width: 760px;
   display: flex;
   flex-direction: column;
+  margin: auto 0;
   animation: slideUp 0.48s ease-out both;
 }
 
@@ -1275,6 +1297,152 @@
   padding: 24px 26px;
   display: flex;
   flex-direction: column;
+}
+
+/* ── Query Verification Box & Scrollbar (Screen 3 Approval) ── */
+.query-verify-container {
+  width: 100%;
+  background: rgba(8, 12, 20, 0.85);
+  border: 1px solid rgba(254, 239, 184, 0.22);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.query-verify-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border-bottom: 1px solid rgba(254, 239, 184, 0.12);
+}
+
+.query-verify-type-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-butter, #feefb8);
+  opacity: 0.9;
+}
+
+.query-verify-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(254, 239, 184, 0.08);
+  border: 1px solid rgba(254, 239, 184, 0.25);
+  color: #feefb8;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.query-verify-copy-btn:hover {
+  background: rgba(254, 239, 184, 0.18);
+  border-color: rgba(254, 239, 184, 0.55);
+  transform: translateY(-1px);
+}
+
+.query-verify-scroll-box {
+  width: 100%;
+  max-height: 290px;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.28);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(254, 239, 184, 0.4) rgba(0, 0, 0, 0.25);
+}
+
+.query-verify-scroll-box::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.query-verify-scroll-box::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+}
+
+.query-verify-scroll-box::-webkit-scrollbar-thumb {
+  background: rgba(254, 239, 184, 0.38);
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.query-verify-scroll-box::-webkit-scrollbar-thumb:hover {
+  background: rgba(254, 239, 184, 0.65);
+}
+
+.query-verify-code {
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', 'Courier New', monospace);
+  font-size: 13px;
+  line-height: 1.6;
+  color: #feefb8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  tab-size: 2;
+}
+
+.query-verify-edit-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 12, 20, 0.85);
+  border: 1px solid rgba(254, 239, 184, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.query-verify-textarea {
+  width: 100%;
+  max-height: 280px;
+  min-height: 120px;
+  overflow-y: auto;
+  overflow-x: auto;
+  background-color: #0b0f17;
+  color: #feefb8;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(254, 239, 184, 0.35);
+  outline: none;
+  resize: vertical;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(254, 239, 184, 0.4) rgba(0, 0, 0, 0.25);
+}
+
+.query-verify-textarea:focus {
+  border-color: rgba(254, 239, 184, 0.7);
+  box-shadow: 0 0 12px rgba(254, 239, 184, 0.15);
+}
+
+.query-verify-textarea::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.query-verify-textarea::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+}
+
+.query-verify-textarea::-webkit-scrollbar-thumb {
+  background: rgba(254, 239, 184, 0.38);
+  border-radius: 4px;
+}
+
+.query-verify-textarea::-webkit-scrollbar-thumb:hover {
+  background: rgba(254, 239, 184, 0.65);
 }
 
 .action-section-label {

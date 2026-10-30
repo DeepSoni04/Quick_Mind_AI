@@ -211,6 +211,45 @@ function WorkspaceScreen({ onRunQuery, initialText = '', selectedDbId, selectedD
   );
 }
 
+// ─── Copy Query Button ────────────────────────────────────────────────────────
+function CopyQueryButton({ textToCopy }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e) => {
+    e.stopPropagation();
+    if (!textToCopy) return;
+    navigator.clipboard?.writeText(textToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      type="button"
+      className="query-verify-copy-btn"
+      onClick={handleCopy}
+      title="Copy query to clipboard"
+    >
+      {copied ? (
+        <>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span>Copied!</span>
+        </>
+      ) : (
+        <>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+          <span>Copy</span>
+        </>
+      )}
+    </button>
+  );
+}
+
 // ─── SQL Approval Screen (Natural Language -> SQL -> Validate -> Approval Flow) ──
 function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate }) {
   const [editingIndex, setEditingIndex] = useState(null);
@@ -321,49 +360,43 @@ function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate 
 
               <div className="action-card-body">
                 {isEditing ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+                  <div className="query-verify-edit-container">
+                    <div className="query-verify-toolbar">
+                      <span className="query-verify-type-tag">Edit Query</span>
+                    </div>
                     <textarea
-                      rows={3}
+                      rows={Math.min(12, Math.max(5, (editedSql.split('\n').length || 4)))}
                       value={editedSql}
                       onChange={(e) => setEditedSql(e.target.value)}
-                      style={{
-                        width: '100%',
-                        backgroundColor: '#111318',
-                        color: '#feefb8',
-                        fontFamily: 'monospace',
-                        fontSize: '13px',
-                        padding: '12px',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(254,239,184,0.4)',
-                        outline: 'none'
-                      }}
+                      className="query-verify-textarea"
+                      placeholder="Enter query..."
+                      spellCheck={false}
                     />
-                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                      <button className="btn-cancel" onClick={() => setEditingIndex(null)}>Cancel Edit</button>
-                      <button className="btn-confirm-action btn-confirm-action--update" onClick={handleSaveEdit} disabled={isSubmitting}>
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+                      <button type="button" className="btn-cancel" onClick={() => setEditingIndex(null)}>Cancel Edit</button>
+                      <button type="button" className="btn-confirm-action btn-confirm-action--update" onClick={handleSaveEdit} disabled={isSubmitting}>
                         {isSubmitting ? 'Validating…' : 'Validate & Save'}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div style={{ width: '100%' }}>
-                    <pre style={{
-                      backgroundColor: 'rgba(0,0,0,0.35)',
-                      padding: '14px',
-                      borderRadius: '8px',
-                      fontFamily: 'monospace',
-                      fontSize: '13px',
-                      color: '#feefb8',
-                      overflowX: 'auto',
-                      whiteSpace: 'pre-wrap',
-                      margin: 0
-                    }}>
-                      {/* Show MQL (MongoDB) or SQL nicely */}
-                      {stmt.mql
-                        ? JSON.stringify(stmt.mql, null, 2)
-                        : stmt.sql
-                      }
-                    </pre>
+                    <div className="query-verify-container">
+                      <div className="query-verify-toolbar">
+                        <span className="query-verify-type-tag">
+                          {stmt.mql ? 'MongoDB MQL Pipeline' : `${op} Query`}
+                        </span>
+                        <CopyQueryButton textToCopy={stmt.mql ? JSON.stringify(stmt.mql, null, 2) : (stmt.sql || '')} />
+                      </div>
+                      <div className="query-verify-scroll-box">
+                        <pre className="query-verify-code">
+                          {stmt.mql
+                            ? JSON.stringify(stmt.mql, null, 2)
+                            : stmt.sql
+                          }
+                        </pre>
+                      </div>
+                    </div>
 
                     {/* Impact Preview: estimated rows affected for DELETE/UPDATE */}
                     {stmt.estimated_rows_affected != null && (op === 'DELETE' || op === 'UPDATE') && (
@@ -418,7 +451,7 @@ function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate 
                   {!isStmtBlocked && (
                     <button
                       type="button"
-                      onClick={() => handleStartEdit(idx, stmt.sql)}
+                      onClick={() => handleStartEdit(idx, stmt.sql || (stmt.mql ? JSON.stringify(stmt.mql, null, 2) : ''))}
                       style={{
                         background: 'transparent',
                         border: 'none',
@@ -428,7 +461,7 @@ function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate 
                         textDecoration: 'underline'
                       }}
                     >
-                      Edit SQL
+                      Edit Query
                     </button>
                   )}
                 </div>

@@ -16,9 +16,9 @@ import ProfilePage from './pages/ProfilePage';
 
 function AppLayout() {
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--bg-page)' }}>
+    <div style={{ display: 'flex', width: '100vw', minHeight: '100vh', height: '100vh', backgroundColor: 'var(--bg-page)' }}>
       <Sidebar />
-      <main style={{ flex: 1, height: '100%', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <main style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         <Outlet />
       </main>
     </div>

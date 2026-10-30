@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 import httpx
 from fastapi import HTTPException, status
@@ -14,7 +15,12 @@ logger = logging.getLogger("querymind.llm_service")
 # ─── MongoDB-native MQL system prompt ─────────────────────────────────────────
 
 def _build_mongodb_prompt(schema_text: str) -> str:
+    now = datetime.now()
+    current_date_str = now.strftime("%Y-%m-%d")
+    current_year = now.year
+
     return f"""You are QueryMind AI, an expert natural language to MongoDB query translator.
+Current Reference Date: {current_date_str} (Current Year: {current_year})
 
 Available MongoDB Collections & Fields:
 {schema_text}
@@ -30,6 +36,33 @@ Rules:
    - INSERT → "insert_one" or "insert_many" → {{ "document": {{...}} }} or {{ "documents": [...] }}
    - UPDATE → "update_one" or "update_many" → {{ "filter": {{...}}, "update": {{ "$set": {{...}} }} }}
    - DELETE → "delete_one" or "delete_many" → {{ "filter": {{...}} }}
+
+5. DATE & TIME MATCHING GUIDELINES:
+   - When a user query mentions a date without specifying a year (e.g. "1 November", "scheduled on 1 Nov", "today", "tomorrow"):
+     NEVER guess or hardcode outdated years (such as 2023 or 2024).
+     Prefer year-resilient day & month matching using $expr:
+       {{ "$expr": {{ "$and": [ {{ "$eq": [{{ "$month": "$showDateTime" }}, 11] }}, {{ "$eq": [{{ "$dayOfMonth": "$showDateTime" }}, 1] }} ] }} }}
+     OR match full 24-hour day datetime range using the current reference year ({current_year}):
+       {{ "showDateTime": {{ "$gte": {{ "$date": "{current_year}-11-01T00:00:00.000Z" }}, "$lt": {{ "$date": "{current_year}-11-02T00:00:00.000Z" }} }} }}
+
+6. RELATED COLLECTIONS & LOOKUP AGGREGATION:
+   - When a query asks for descriptive information across related collections (for example: "which shows are scheduled on 1 November", where "shows.movie" links to "movies._id"):
+     Use "aggregate" with $lookup so the output includes human-readable details (like movie title and poster_path) along with show timing and price!
+     Example pipeline:
+     [
+       {{ "$match": {{ "$expr": {{ "$and": [ {{ "$eq": [{{ "$month": "$showDateTime" }}, 11] }}, {{ "$eq": [{{ "$dayOfMonth": "$showDateTime" }}, 1] }} ] }} }} }},
+       {{ "$lookup": {{ "from": "movies", "localField": "movie", "foreignField": "_id", "as": "movie_details" }} }},
+       {{ "$unwind": {{ "path": "$movie_details", "preserveNullAndEmptyArrays": true }} }},
+       {{ "$project": {{
+           "_id": 1,
+           "movie_title": "$movie_details.title",
+           "poster_path": "$movie_details.poster_path",
+           "showDateTime": 1,
+           "showPrice": 1,
+           "occupiedSeats": 1
+       }} }}
+     ]
+   - If a simple "find" is requested or sufficient, you can also use "find" with the year-resilient $expr or {current_year} datetime filter.
 
 Return strictly valid JSON with this structure:
 {{
@@ -60,7 +93,7 @@ Return strictly valid JSON with this structure:
 IMPORTANT:
 - The "sql" field must be a JSON string representation of the MQL operation for display purposes.
 - The "mql" field must be the structured MQL object.
-- Map CRUD intent to the correct MongoDB operation names (find, update_many, etc.).
+- Map CRUD intent to the correct MongoDB operation names (find, update_many, aggregate, etc.).
 - Do NOT invent collection names or field names not present in the schema.
 - Use $set for UPDATE operations. Never use full document replacement.
 - For SELECT-intent, use "find" or "aggregate". Map "SELECT" to operation "SELECT" in the outer "operation" field.
@@ -71,8 +104,13 @@ IMPORTANT:
 
 
 def _build_sql_prompt(db_type: str, schema_text: str) -> str:
+    now = datetime.now()
+    current_date_str = now.strftime("%Y-%m-%d")
+    current_year = now.year
+
     return f"""You are QueryMind AI, an expert natural language to SQL translator.
 Target Database Dialect: {db_type.upper()}
+Current Reference Date: {current_date_str} (Current Year: {current_year})
 
 Available Database Schema & Column Details:
 {schema_text}
@@ -80,8 +118,9 @@ Available Database Schema & Column Details:
 Rules:
 1. Understand queries written in English or Hinglish.
 2. Generate valid SQL syntax strictly using the target dialect ({db_type.upper()}).
-3. Do NOT generate MySQL-specific syntax for PostgreSQL or vice-versa.
-4. If the user request is ambiguous, set "needs_clarification": true with a clear question and choices.
+3. When matching dates without an explicit year (e.g. "1 November"), use the current reference year ({current_year}) instead of outdated years.
+4. Do NOT generate MySQL-specific syntax for PostgreSQL or vice-versa.
+5. If the user request is ambiguous, set "needs_clarification": true with a clear question and choices.
 5. Return strictly valid JSON containing:
 {{
   "status": "success",

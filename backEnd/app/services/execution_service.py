@@ -536,6 +536,24 @@ class ExecutionService:
             docs: List[Dict] = []
             result_meta: Optional[Dict] = None  # for write operation results
 
+            # Decode any MongoDB Extended JSON types ($date, $oid, etc.) into native Python/BSON types
+            import bson.json_util as _bson_json_util
+
+            def _clean_bson(obj):
+                if not obj:
+                    return obj
+                try:
+                    return _bson_json_util.loads(_json.dumps(obj))
+                except Exception:
+                    return obj
+
+            filt = _clean_bson(filt)
+            projection = _clean_bson(projection)
+            update = _clean_bson(update)
+            document = _clean_bson(document)
+            documents = _clean_bson(documents)
+            pipeline = _clean_bson(pipeline)
+
             # --- Dispatch operation ---
             if operation == "find":
                 cursor = col.find(filt, projection).limit(max_rows + 1)
