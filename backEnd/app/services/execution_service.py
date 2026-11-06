@@ -1,6 +1,8 @@
+import datetime
 import logging
 import re
 import time
+from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 from bson import ObjectId
 from fastapi import HTTPException, status
@@ -216,23 +218,26 @@ class ExecutionService:
             )
 
         now = utc_now()
-        await self.db.queries.update_one(
-            {"_id": obj_q_id},
-            {"$set": {
-                "execution_status": "success",
-                "result_columns": columns,
-                "result_rows": rows,
-                "row_count": total_rows,
-                "execution_time_ms": total_time_ms,
-                "executed_at": now,
-                "updated_at": now
-            }}
-        )
+        try:
+            await self.db.queries.update_one(
+                {"_id": obj_q_id},
+                {"$set": {
+                    "execution_status": "success",
+                    "result_columns": columns,
+                    "result_rows": rows,
+                    "row_count": total_rows,
+                    "execution_time_ms": total_time_ms,
+                    "executed_at": now,
+                    "updated_at": now
+                }}
+            )
 
-        await self.db.database_connections.update_one(
-            {"_id": ObjectId(conn_id)},
-            {"$inc": {"queries_count": 1}, "$set": {"updated_at": now}}
-        )
+            await self.db.database_connections.update_one(
+                {"_id": ObjectId(conn_id)},
+                {"$inc": {"queries_count": 1}, "$set": {"updated_at": now}}
+            )
+        except Exception as persist_err:
+            logger.warning(f"Failed to persist query result to MongoDB: {persist_err}")
 
         # Generate summary
         summary = None
@@ -333,6 +338,23 @@ class ExecutionService:
 
         return None
 
+    @staticmethod
+    def _serialize_row_cell(val: Any) -> Any:
+        """Convert non-BSON / non-JSON primitive types (date, Decimal, bytes, etc.) to safe serializable types."""
+        if val is None:
+            return None
+        if isinstance(val, (datetime.date, datetime.datetime, datetime.time)):
+            return val.isoformat()
+        if isinstance(val, datetime.timedelta):
+            return str(val)
+        if isinstance(val, Decimal):
+            return int(val) if val % 1 == 0 else float(val)
+        if isinstance(val, (bytes, bytearray, memoryview)):
+            return bytes(val).decode("utf-8", errors="replace")
+        if hasattr(val, "__str__") and not isinstance(val, (int, float, bool, str, list, dict)):
+            return str(val)
+        return val
+
     # ------------------------------------------------------------------
     # Private: SQL execution (MySQL / PostgreSQL)
     # ------------------------------------------------------------------
@@ -381,9 +403,10 @@ class ExecutionService:
                         fetched = cursor.fetchmany(max_rows + 1)
                         if len(fetched) > max_rows:
                             truncated = True
-                            rows = [list(r) for r in fetched[:max_rows]]
+                            raw_rows = fetched[:max_rows]
                         else:
-                            rows = [list(r) for r in fetched]
+                            raw_rows = fetched
+                        rows = [[self._serialize_row_cell(c) for c in r] for r in raw_rows]
             finally:
                 conn.close()
 
@@ -406,9 +429,10 @@ class ExecutionService:
                         fetched = cursor.fetchmany(max_rows + 1)
                         if len(fetched) > max_rows:
                             truncated = True
-                            rows = [list(r) for r in fetched[:max_rows]]
+                            raw_rows = fetched[:max_rows]
                         else:
-                            rows = [list(r) for r in fetched]
+                            raw_rows = fetched
+                        rows = [[self._serialize_row_cell(c) for c in r] for r in raw_rows]
             finally:
                 conn.close()
         else:
