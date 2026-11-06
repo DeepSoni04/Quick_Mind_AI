@@ -197,6 +197,7 @@ class DatabaseService:
             return False, "Database name is required for PostgreSQL."
 
         try:
+            ssl_mode = "require" if (".neon.tech" in host or "supabase" in host or "aws" in host) else "prefer"
             conn = psycopg2.connect(
                 host=host,
                 port=int(port),
@@ -204,6 +205,7 @@ class DatabaseService:
                 password=password,
                 dbname=database_name,
                 connect_timeout=5,
+                sslmode=ssl_mode,
             )
             conn.close()
             logger.info(f"PostgreSQL connection test successful: {host}:{port}/{database_name}")

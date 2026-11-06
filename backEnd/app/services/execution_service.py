@@ -411,6 +411,7 @@ class ExecutionService:
                 conn.close()
 
         elif db_type_low in ["postgresql", "postgres"]:
+            ssl_mode = "require" if (".neon.tech" in host or "supabase" in host or "aws" in host) else "prefer"
             conn = psycopg2.connect(
                 host=host,
                 port=port,
@@ -418,11 +419,15 @@ class ExecutionService:
                 password=password,
                 dbname=database_name,
                 connect_timeout=timeout,
-                options=f"-c statement_timeout={timeout * 1000}"
+                sslmode=ssl_mode,
             )
             conn.autocommit = True
             try:
                 with conn.cursor() as cursor:
+                    try:
+                        cursor.execute(f"SET statement_timeout = {timeout * 1000};")
+                    except Exception:
+                        pass
                     cursor.execute(sql)
                     if cursor.description:
                         cols = [d[0] for d in cursor.description]

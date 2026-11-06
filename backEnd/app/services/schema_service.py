@@ -150,6 +150,7 @@ class SchemaService:
         self, host: str, port: int, user: str, password: str, db_name: str
     ) -> List[TableSchema]:
         """Query PostgreSQL information_schema for tables and columns."""
+        ssl_mode = "require" if (".neon.tech" in host or "supabase" in host or "aws" in host) else "prefer"
         conn = psycopg2.connect(
             host=host,
             port=int(port),
@@ -157,6 +158,7 @@ class SchemaService:
             password=password,
             dbname=db_name,
             connect_timeout=10,
+            sslmode=ssl_mode,
         )
         try:
             with conn.cursor() as cursor:
