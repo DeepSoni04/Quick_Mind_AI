@@ -782,17 +782,78 @@ class MockLLMProvider(LLMProvider):
         clean = nl_query.strip()
         lower = clean.lower()
 
-        # Ambiguity test cases
-        if "ambiguous" in lower or (lower.startswith("show sales") and "sales_orders" in schema_text):
+        # 1. Clarified Ambiguity Resolutions (prevent infinite ambiguity loop)
+        if ("top performer" in lower or "best student" in lower) and ("attendance" in lower or "course" in lower):
+            if db_type.lower() in ("mongodb", "mongo"):
+                mql = {"collection": "students", "operation": "find", "filter": {}, "sort": {"attendance_pct": -1}}
+                return {
+                    "status": "success",
+                    "intent": "Top students ranked by attendance percentage",
+                    "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "SELECT", "mql": mql}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+            else:
+                quote = "`" if db_type == "mysql" else '"'
+                sql = "SELECT s.student_id, s.first_name, s.last_name, e.attendance_pct FROM students s JOIN enrollments e ON s.student_id = e.student_id ORDER BY e.attendance_pct DESC LIMIT 10;"
+                return {
+                    "status": "success",
+                    "intent": "Top students ranked by course attendance percentage",
+                    "sql_statements": [{"sql": sql, "operation": "SELECT"}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+
+        if ("top performer" in lower or "best student" in lower) and ("cgpa" in lower or "grade" in lower):
+            if db_type.lower() in ("mongodb", "mongo"):
+                mql = {"collection": "students", "operation": "find", "filter": {}, "sort": {"cgpa": -1}}
+                return {
+                    "status": "success",
+                    "intent": "Top students ranked by CGPA",
+                    "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "SELECT", "mql": mql}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+            else:
+                sql = "SELECT student_id, first_name, last_name, cgpa FROM students ORDER BY cgpa DESC LIMIT 10;"
+                return {
+                    "status": "success",
+                    "intent": "Top students ranked by CGPA",
+                    "sql_statements": [{"sql": sql, "operation": "SELECT"}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+
+        if "booking" in lower and "confirmed" in lower:
+            sql = "SELECT * FROM `Booking` WHERE `status` = 'Confirmed';"
             return {
                 "status": "success",
-                "intent": "Ambiguous request detected",
-                "sql_statements": [],
-                "needs_clarification": True,
-                "clarification_question": "Could you clarify which sales table you want to query?",
-                "clarification_choices": ["sales", "sales_orders", "sales_summary"]
+                "intent": "Show confirmed bookings",
+                "sql_statements": [{"sql": sql, "operation": "SELECT"}],
+                "needs_clarification": False,
+                "clarification_question": None,
+                "clarification_choices": None
             }
-        if "top performer" in lower or "best student" in lower:
+
+        if "booking" in lower and "completed" in lower:
+            sql = "SELECT * FROM `Booking` WHERE `status` = 'Completed';"
+            return {
+                "status": "success",
+                "intent": "Show completed bookings",
+                "sql_statements": [{"sql": sql, "operation": "SELECT"}],
+                "needs_clarification": False,
+                "clarification_question": None,
+                "clarification_choices": None
+            }
+
+        # 2. Trigger Ambiguity if NOT yet clarified
+        if lower.strip() in ("show top performers", "top performers", "best students", "top students") or (
+            ("top performer" in lower or "best student" in lower) and "(" not in lower
+        ):
             return {
                 "status": "success",
                 "intent": "Ambiguity detected on ranking criteria",
@@ -801,6 +862,7 @@ class MockLLMProvider(LLMProvider):
                 "clarification_question": "How would you like to rank top performers?",
                 "clarification_choices": ["Rank by CGPA", "Rank by Course Attendance %"]
             }
+
         if lower.strip() in ("show bookings", "bookings", "list bookings", "show all bookings"):
             return {
                 "status": "success",
@@ -810,6 +872,7 @@ class MockLLMProvider(LLMProvider):
                 "clarification_question": "Which bookings would you like to view?",
                 "clarification_choices": ["Confirmed Bookings", "Completed Bookings", "All Bookings"]
             }
+
         if lower.strip() in ("show orders", "orders", "list orders"):
             return {
                 "status": "success",
@@ -818,6 +881,16 @@ class MockLLMProvider(LLMProvider):
                 "needs_clarification": True,
                 "clarification_question": "How would you like to inspect orders?",
                 "clarification_choices": ["Recent Orders", "Orders by Payment Method", "Orders by Status"]
+            }
+
+        if "ambiguous" in lower or (lower.startswith("show sales") and "sales_orders" in schema_text):
+            return {
+                "status": "success",
+                "intent": "Ambiguous request detected",
+                "sql_statements": [],
+                "needs_clarification": True,
+                "clarification_question": "Could you clarify which sales table you want to query?",
+                "clarification_choices": ["sales", "sales_orders", "sales_summary"]
             }
 
         # MongoDB: generate MQL instead of SQL
@@ -879,7 +952,12 @@ class MockLLMProvider(LLMProvider):
         elif op == "DELETE":
             sql = f"DELETE FROM {quote}{target_table}{quote} WHERE {quote}status{quote} = 'inactive'"
         elif op == "INSERT":
-            sql = f"INSERT INTO {quote}{target_table}{quote} ({quote}name{quote}) VALUES ('New Student')"
+            if "customer" in lower and ("aarav" in lower or "phone" in lower or "email" in lower):
+                sql = "INSERT INTO `Customer` (`cid`, `fname`, `lname`, `uname`, `password`, `phone`, `email`) VALUES (UUID(), 'Aarav', 'Patel', 'aarav01', 'Pass@123', '9876543210', 'aarav.patel@example.com');"
+            elif "student" in lower and ("neha" in lower or "cgpa" in lower or "email" in lower):
+                sql = "INSERT INTO students (first_name, last_name, email, cgpa, dept_id, enrollment_year) VALUES ('Neha', 'Sharma', 'neha.s@univ.edu', 9.2, 1, 2024);"
+            else:
+                sql = f"INSERT INTO {quote}{target_table}{quote} ({quote}name{quote}) VALUES ('New Entry')"
 
         return {
             "status": "success",
@@ -891,13 +969,11 @@ class MockLLMProvider(LLMProvider):
         }
 
     def _generate_mongodb_query(self, nl_query: str, lower: str, schema_text: str) -> Dict[str, Any]:
-        """Generate a deterministic MongoDB MQL for testing."""
-        # Determine collection from schema
+        """Generate a rich, deterministic MongoDB MQL for testing and offline fallback."""
         collections = re.findall(r"Collection:\s*([a-zA-Z0-9_]+)", schema_text)
-        # Also try Table: prefix (schema_service may emit Table: for MongoDB too)
         if not collections:
             collections = re.findall(r"Table:\s*([a-zA-Z0-9_]+)", schema_text)
-        target_coll = "documents"
+        target_coll = "students"
         if collections:
             for c in collections:
                 if c.lower() in lower:
@@ -906,33 +982,201 @@ class MockLLMProvider(LLMProvider):
             else:
                 target_coll = collections[0]
 
+        # 1. DELETE
         if re.search(r"\b(delete|remove|erase|purge)\b", lower):
             op = "DELETE"
-            mql_op = "delete_many"
-            mql = {"collection": target_coll, "operation": mql_op, "filter": {"status": "inactive"}}
-            display = json.dumps(mql)
+            mql_op = "delete_one" if ("the student" in lower or "@" in lower or "email" in lower) else "delete_many"
+            filt: Dict[str, Any] = {}
+            m_email = re.search(r'[\w\.-]+@[\w\.-]+', lower)
+            if m_email:
+                filt["email"] = m_email.group(0)
+            elif "inactive" in lower:
+                filt["status"] = "inactive"
+            elif "graduated" in lower:
+                filt["status"] = "graduated"
+            else:
+                m_name = re.search(r'student (?:with name |named )?[\'"]?([a-zA-Z\s]+?)[\'"]?(?:\s*$|\s+with|\s+from)', nl_query, re.IGNORECASE)
+                if m_name:
+                    filt["name"] = m_name.group(1).strip()
+            if not filt:
+                filt = {"status": "inactive"}
+            mql = {"collection": target_coll, "operation": mql_op, "filter": filt}
+            display = json.dumps(mql, indent=2)
+
+        # 2. UPDATE
         elif re.search(r"\b(update|change|set|modify)\b", lower):
             op = "UPDATE"
-            mql_op = "update_many"
-            mql = {"collection": target_coll, "operation": mql_op, "filter": {}, "update": {"$set": {"department": "Computer Science"}}}
-            display = json.dumps(mql)
-        elif re.search(r"\b(insert|add)\b", lower):
+            mql_op = "update_one" if ("rohan" in lower or "@" in lower or "student" in lower) else "update_many"
+            filt = {}
+            m_email = re.search(r'[\w\.-]+@[\w\.-]+', lower)
+            if m_email:
+                filt["email"] = m_email.group(0)
+            else:
+                m_name = re.search(r'([A-Z][a-z]+ [A-Z][a-z]+)', nl_query)
+                if m_name:
+                    filt["name"] = m_name.group(1).strip()
+
+            update_fields: Dict[str, Any] = {}
+            if "graduated" in lower:
+                update_fields["status"] = "graduated"
+            elif "active" in lower and "inactive" not in lower:
+                update_fields["status"] = "active"
+            elif "inactive" in lower:
+                update_fields["status"] = "inactive"
+
+            m_cgpa = re.search(r'cgpa (?:to|=)?\s*([0-9.]+)', lower)
+            if m_cgpa:
+                update_fields["cgpa"] = float(m_cgpa.group(1))
+
+            m_dept = re.search(r'department (?:to|=)?\s*[\'"]?([a-zA-Z\s]+?)[\'"]?(?:\s*$|\s+and)', nl_query, re.IGNORECASE)
+            if m_dept:
+                update_fields["department"] = m_dept.group(1).strip()
+
+            if not update_fields:
+                update_fields = {"status": "graduated", "cgpa": 9.0}
+
+            mql = {"collection": target_coll, "operation": mql_op, "filter": filt, "update": {"$set": update_fields}}
+            display = json.dumps(mql, indent=2)
+
+        # 3. INSERT
+        elif re.search(r"\b(insert|add|create)\b", lower):
             op = "INSERT"
             mql_op = "insert_one"
-            mql = {"collection": target_coll, "operation": mql_op, "document": {"name": "New Document"}}
-            display = json.dumps(mql)
+            doc: Dict[str, Any] = {}
+            m_name = re.search(r'named?\s*[\'"]([^\'"]+)[\'"]', nl_query, re.IGNORECASE)
+            if m_name:
+                doc["name"] = m_name.group(1).strip()
+            else:
+                m_name2 = re.search(r'student\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', nl_query)
+                if m_name2:
+                    doc["name"] = m_name2.group(1).strip()
+
+            m_email = re.search(r'[\w\.-]+@[\w\.-]+', nl_query)
+            if m_email:
+                doc["email"] = m_email.group(0)
+
+            m_age = re.search(r'age\s*[:=]?\s*([0-9]+)', lower)
+            if m_age:
+                doc["age"] = int(m_age.group(1))
+
+            m_dept = re.search(r'department\s*[:=]?\s*[\'"]([^\'"]+)[\'"]', nl_query, re.IGNORECASE)
+            if m_dept:
+                doc["department"] = m_dept.group(1).strip()
+            elif "computer science" in lower:
+                doc["department"] = "Computer Science"
+            elif "information technology" in lower:
+                doc["department"] = "Information Technology"
+
+            m_cgpa = re.search(r'cgpa\s*[:=]?\s*([0-9.]+)', lower)
+            if m_cgpa:
+                doc["cgpa"] = float(m_cgpa.group(1))
+
+            m_skills = re.search(r'skills?\s*[:=]?\s*[\'"]([^\'"]+)[\'"]', nl_query, re.IGNORECASE)
+            if m_skills:
+                doc["skills"] = [s.strip() for s in m_skills.group(1).split(",") if s.strip()]
+            else:
+                found_skills = []
+                for sk in ["Python", "React", "FastAPI", "Node", "MongoDB", "SQL", "Docker", "AWS"]:
+                    if sk.lower() in lower:
+                        found_skills.append(sk)
+                if found_skills:
+                    doc["skills"] = found_skills
+
+            if "active" in lower and "inactive" not in lower:
+                doc["status"] = "active"
+            elif "graduated" in lower:
+                doc["status"] = "graduated"
+            elif "inactive" in lower:
+                doc["status"] = "inactive"
+            else:
+                doc["status"] = "active"
+
+            if not doc.get("name"):
+                doc["name"] = "Rohan Verma"
+            if not doc.get("email"):
+                doc["email"] = "rohan.v@tech.com"
+            if not doc.get("cgpa"):
+                doc["cgpa"] = 8.8
+            if not doc.get("skills"):
+                doc["skills"] = ["Python", "React"]
+
+            mql = {"collection": target_coll, "operation": mql_op, "document": doc}
+            display = json.dumps(mql, indent=2)
+
+        # 4. SELECT / FIND / AGGREGATE
         else:
             op = "SELECT"
             mql_op = "find"
-            mql_filter: Dict[str, Any] = {}
-            if "ahmedabad" in lower:
-                mql_filter = {"city": "Ahmedabad"}
-            elif "unpaid" in lower or "pending" in lower:
-                mql_filter = {"status": "Pending"}
+            mql_filter = {}
+
+            # Status filter
+            if "active" in lower and "inactive" not in lower:
+                mql_filter["status"] = "active"
             elif "inactive" in lower:
-                mql_filter = {"status": "Inactive"}
-            mql = {"collection": target_coll, "operation": mql_op, "filter": mql_filter, "projection": {}}
-            display = json.dumps(mql)
+                mql_filter["status"] = "inactive"
+            elif "graduated" in lower:
+                mql_filter["status"] = "graduated"
+
+            # CGPA filter
+            m_gt = re.search(r'cgpa\s*(?:greater than|>|above|more than)\s*([0-9.]+)', lower)
+            m_lt = re.search(r'cgpa\s*(?:less than|<|below)\s*([0-9.]+)', lower)
+            m_between = re.search(r'cgpa\s*(?:between)\s*([0-9.]+)\s*and\s*([0-9.]+)', lower)
+            if m_between:
+                mql_filter["cgpa"] = {"$gte": float(m_between.group(1)), "$lte": float(m_between.group(2))}
+            elif m_gt:
+                mql_filter["cgpa"] = {"$gt": float(m_gt.group(1))}
+            elif m_lt:
+                mql_filter["cgpa"] = {"$lt": float(m_lt.group(1))}
+
+            # Age filter
+            m_age_gt = re.search(r'age\s*(?:greater than|>|above)\s*([0-9]+)', lower)
+            if m_age_gt:
+                mql_filter["age"] = {"$gt": int(m_age_gt.group(1))}
+
+            # Skills filter
+            known_skills = ["python", "react", "fastapi", "mongodb", "node", "sql", "docker", "aws"]
+            skills_found = [s.capitalize() if s not in ("sql", "aws") else s.upper() for s in known_skills if s in lower]
+            if skills_found and ("skill" in lower or "have" in lower or "know" in lower or "in their" in lower):
+                mql_filter["skills"] = {"$in": skills_found}
+
+            # Department filter
+            if "computer science" in lower or "cs" in lower.split():
+                mql_filter["department"] = "Computer Science"
+            elif "information technology" in lower or "it" in lower.split():
+                mql_filter["department"] = "Information Technology"
+            elif "electronics" in lower:
+                mql_filter["department"] = "Electronics"
+
+            # Email filter
+            m_email = re.search(r'[\w\.-]+@[\w\.-]+', lower)
+            if m_email:
+                mql_filter["email"] = m_email.group(0)
+
+            # Name search
+            m_name = re.search(r'named?\s*[\'"]([^\'"]+)[\'"]', nl_query, re.IGNORECASE)
+            if m_name:
+                mql_filter["name"] = {"$regex": m_name.group(1).strip(), "$options": "i"}
+
+            mql = {
+                "collection": target_coll,
+                "operation": mql_op,
+                "filter": mql_filter
+            }
+
+            # Sort
+            m_sort = re.search(r'sort(?:ed)? by ([a-zA-Z0-9_]+)\s*(descending|desc|ascending|asc)?', lower)
+            if m_sort:
+                s_field = m_sort.group(1)
+                s_dir = -1 if (m_sort.group(2) and "desc" in m_sort.group(2)) else 1
+                mql["sort"] = {s_field: s_dir}
+
+            # Specific Projection
+            if "only name and cgpa" in lower or "just name and cgpa" in lower:
+                mql["projection"] = {"name": 1, "cgpa": 1, "_id": 0}
+            elif "only name" in lower:
+                mql["projection"] = {"name": 1, "_id": 0}
+
+            display = json.dumps(mql, indent=2)
 
         return {
             "status": "success",

@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from bson import ObjectId
 from fastapi import HTTPException, status
@@ -423,7 +424,7 @@ class SchemaService:
         restricted_ops = parsed.get("restricted_operations", ["DELETE"])
         target_role = parsed.get("target_role", "viewer")
 
-        now = utc_now()
+        now = datetime.now(timezone.utc)
         rule_doc = {
             "database_id": conn_id,
             "created_by": user_id,
@@ -507,6 +508,8 @@ class SchemaService:
         rule_doc["id"] = str(res.inserted_id)
         if "_id" in rule_doc:
             del rule_doc["_id"]
+        if "created_at" in rule_doc and hasattr(rule_doc["created_at"], "isoformat"):
+            rule_doc["created_at"] = rule_doc["created_at"].isoformat()
         return rule_doc
 
     async def get_natural_language_rules(self, conn_id: str) -> List[Dict[str, Any]]:
@@ -515,6 +518,8 @@ class SchemaService:
         async for r in cursor:
             r["id"] = str(r["_id"])
             del r["_id"]
+            if "created_at" in r and hasattr(r["created_at"], "isoformat"):
+                r["created_at"] = r["created_at"].isoformat()
             rules.append(r)
         return rules
 

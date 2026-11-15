@@ -313,30 +313,55 @@ function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate,
             </div>
             <div className="action-card-body">
               <p style={{ color: '#f3f4f6', fontSize: 14.5, fontWeight: 500, lineHeight: 1.5 }}>{clarification_question}</p>
-              <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 4 }}>Select an option below to generate the exact query:</p>
-              {clarification_choices && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
-                  {clarification_choices.map((choice) => (
-                    <button
-                      key={choice}
-                      type="button"
-                      className="example-pill"
-                      style={{
-                        padding: '9px 18px',
-                        background: 'rgba(245,158,11,0.18)',
-                        border: '1px solid rgba(245,158,11,0.45)',
-                        color: '#fef08a',
-                        fontWeight: 600,
-                        fontSize: 13,
-                        cursor: 'pointer',
-                        borderRadius: 20,
-                        transition: 'all 0.2s ease',
-                      }}
-                      onClick={() => onClarify ? onClarify(`${nl_query} (${choice})`) : onRevalidate(query_id, `SELECT * FROM ${choice};`)}
-                    >
-                      👉 {choice}
-                    </button>
-                  ))}
+              {clarification_choices && clarification_choices.length > 0 ? (
+                <>
+                  <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 4 }}>Select an option below to generate the exact query:</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
+                    {clarification_choices.map((choice) => (
+                      <button
+                        key={choice}
+                        type="button"
+                        className="example-pill"
+                        style={{
+                          padding: '9px 18px',
+                          background: 'rgba(245,158,11,0.18)',
+                          border: '1px solid rgba(245,158,11,0.45)',
+                          color: '#fef08a',
+                          fontWeight: 600,
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          borderRadius: 20,
+                          transition: 'all 0.2s ease',
+                        }}
+                        onClick={() => onClarify ? onClarify(`${nl_query} (${choice})`) : onRevalidate(query_id, `SELECT * FROM ${choice};`)}
+                      >
+                        👉 {choice}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div style={{ marginTop: 14, padding: '10px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <p style={{ color: 'rgba(224,224,230,0.85)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+                    💡 <strong>Tip:</strong> The selected database might not have these collections or tables. Try selecting a different database from the top-left selector or rephrasing your request.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    style={{
+                      marginTop: 10,
+                      padding: '7px 14px',
+                      background: 'rgba(254,239,184,0.15)',
+                      border: '1px solid rgba(254,239,184,0.35)',
+                      color: '#fef08a',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ← Back to Workspace &amp; Switch Database
+                  </button>
                 </div>
               )}
             </div>

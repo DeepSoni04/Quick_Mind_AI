@@ -513,6 +513,7 @@ class ExecutionService:
                     operation = "find"
                 filt = mql.get("filter") if mql.get("filter") is not None else (mql.get("query") or {})
                 projection = mql.get("projection") or None
+                sort = mql.get("sort") or None
                 update = mql.get("update") or {}
                 document = mql.get("document") or {}
                 documents = mql.get("documents") or []
@@ -591,7 +592,11 @@ class ExecutionService:
 
             # --- Dispatch operation ---
             if operation == "find":
-                cursor = col.find(filt, projection).limit(max_rows + 1)
+                proj = projection if projection and isinstance(projection, dict) and len(projection) > 0 else None
+                cursor = col.find(filt, proj)
+                if sort and isinstance(sort, dict):
+                    cursor = cursor.sort(list(sort.items()))
+                cursor = cursor.limit(max_rows + 1)
                 docs = list(cursor)
 
             elif operation == "count":

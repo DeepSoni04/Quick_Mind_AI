@@ -386,6 +386,12 @@ class DatabaseService:
             {"_id": obj_id, "created_by": user_id}
         )
         if not doc:
+            # Fallback: check if connection exists and user is admin/analyst or system service
+            user_doc = await self.db.users.find_one({"_id": ObjectId(user_id)}) if ObjectId.is_valid(user_id) else None
+            user_role = user_doc.get("role", "viewer") if user_doc else "admin"
+            if user_role in ["admin", "analyst"] or not user_doc:
+                doc = await self.db.database_connections.find_one({"_id": obj_id})
+        if not doc:
             raise HTTPException(status_code=404, detail="Database connection not found.")
         return doc
 
