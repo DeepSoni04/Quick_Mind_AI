@@ -243,10 +243,16 @@ class ExecutionService:
         summary = None
         try:
             llm = get_llm_provider()
+            sample_data = []
+            if columns and rows:
+                for r in rows[:10]:
+                    sample_data.append({col: val for col, val in zip(columns, r)})
+
             summary = await llm.generate_summary(
                 nl_query=query["nl_query"],
                 sql="; ".join(executed_sqls),
-                row_count=total_rows
+                row_count=total_rows,
+                sample_rows=sample_data
             )
         except Exception as summary_err:
             logger.warning(f"Summary generation notice: {summary_err}")

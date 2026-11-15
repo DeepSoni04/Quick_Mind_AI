@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { getAdminUsers, updateUserRole, resetUserPassword, deleteUser, getSecurityLogs, getAdminRoleRequests, approveRoleRequest, rejectRoleRequest } from '../context/api';
+import {
+  getAdminUsers, updateUserRole, resetUserPassword, deleteUser,
+  getSecurityLogs, getAdminRoleRequests, approveRoleRequest, rejectRoleRequest,
+  getConnections, getNaturalLanguageRules, addNaturalLanguageRule, deleteNaturalLanguageRule
+} from '../context/api';
 import './AdminPage.css';
 
 // Icons as inline SVGs to avoid any dependency issues
@@ -48,6 +52,15 @@ export default function AdminPage() {
   // Reset password feedback
   const [resetDone, setResetDone] = useState({});
 
+  // Natural Language Security Rules state
+  const [connections, setConnections]           = useState([]);
+  const [selectedDb, setSelectedDb]             = useState('');
+  const [nlRules, setNlRules]                   = useState([]);
+  const [nlRuleInput, setNlRuleInput]           = useState('');
+  const [nlRuleLoading, setNlRuleLoading]       = useState(false);
+  const [nlRuleSubmitting, setNlRuleSubmitting] = useState(false);
+  const [nlRuleMsg, setNlRuleMsg]               = useState(null);
+
   // Load users, security logs, and role requests on mount
   useEffect(() => {
     setLoadingUsers(true);
@@ -60,8 +73,75 @@ export default function AdminPage() {
       .then((data) => setSecurityLogs(Array.isArray(data) ? data : []))
       .catch(() => setSecurityLogs([]));
 
+    getConnections()
+      .then((conns) => {
+        const list = Array.isArray(conns) ? conns : [];
+        setConnections(list);
+        if (list.length > 0 && !selectedDb) {
+          setSelectedDb(list[0].id);
+        }
+      })
+      .catch(() => setConnections([]));
+
     loadRoleRequests('pending');
   }, []);
+
+  const loadNlRules = async (connId) => {
+    if (!connId) return;
+    setNlRuleLoading(true);
+    try {
+      const data = await getNaturalLanguageRules(connId);
+      setNlRules(Array.isArray(data) ? data : []);
+    } catch {
+      setNlRules([]);
+    } finally {
+      setNlRuleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'rules' && selectedDb) {
+      loadNlRules(selectedDb);
+    }
+  }, [activeTab, selectedDb]);
+
+  const handleAddRule = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedDb) {
+      setNlRuleMsg({ type: 'error', text: 'Please select a database connection first.' });
+      return;
+    }
+    if (!nlRuleInput.trim()) {
+      setNlRuleMsg({ type: 'error', text: 'Please enter a natural language security policy.' });
+      return;
+    }
+    setNlRuleSubmitting(true);
+    setNlRuleMsg(null);
+    try {
+      const res = await addNaturalLanguageRule(selectedDb, nlRuleInput.trim());
+      setNlRuleMsg({
+        type: 'success',
+        text: `✓ Policy Enforced: ${res.summary || 'Rule applied successfully.'}`
+      });
+      setNlRuleInput('');
+      await loadNlRules(selectedDb);
+    } catch (err) {
+      setNlRuleMsg({ type: 'error', text: `Failed to enforce rule: ${err.message}` });
+    } finally {
+      setNlRuleSubmitting(false);
+    }
+  };
+
+  const handleDeleteRule = async (ruleId) => {
+    if (!selectedDb || !ruleId) return;
+    try {
+      await deleteNaturalLanguageRule(selectedDb, ruleId);
+      setNlRules((prev) => prev.filter((r) => r.id !== ruleId));
+      setNlRuleMsg({ type: 'success', text: '✓ Policy revoked successfully.' });
+    } catch (err) {
+      setNlRuleMsg({ type: 'error', text: `Failed to revoke rule: ${err.message}` });
+    }
+  };
 
   const loadRoleRequests = (filter) => {
     setRoleReqLoading(true);
@@ -140,6 +220,7 @@ export default function AdminPage() {
   const TABS = [
     { id: 'users',    label: 'Users',         Icon: IconUsers },
     { id: 'requests', label: 'Role Requests',  Icon: IconAlert, badge: roleRequests.filter((r) => r.status === 'pending').length || null },
+    { id: 'rules',    label: 'NL Security Rules', Icon: IconShield },
     { id: 'security', label: 'Security Logs',  Icon: IconLogs  },
   ];
 
@@ -192,7 +273,11 @@ export default function AdminPage() {
           <button
             key={id}
             className={`admin-page__tab ${activeTab === id ? 'admin-page__tab--active' : ''}`}
-            onClick={() => { setActiveTab(id); if (id === 'requests') loadRoleRequests(roleReqFilter); }}
+            onClick={() => {
+              setActiveTab(id);
+              if (id === 'requests') loadRoleRequests(roleReqFilter);
+              if (id === 'rules' && selectedDb) loadNlRules(selectedDb);
+            }}
             style={{ position: 'relative' }}
           >
             <Icon /> {label}
@@ -416,6 +501,155 @@ export default function AdminPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── NL Security Rules Tab ── */}
+      {activeTab === 'rules' && (
+        <div className="admin-page__content">
+          {/* Target Database Selector */}
+          <div className="admin-page__nl-db-bar">
+            <label className="admin-page__nl-label">Target Database:</label>
+            <select
+              className="admin-page__select admin-page__nl-db-select"
+              value={selectedDb}
+              onChange={(e) => {
+                setSelectedDb(e.target.value);
+                loadNlRules(e.target.value);
+              }}
+            >
+              {connections.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name || c.database_name} ({c.db_type?.toUpperCase()})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Rule Creator Card */}
+          <div className="admin-page__nl-card">
+            <div className="admin-page__nl-card-header">
+              <div>
+                <h3 className="admin-page__nl-card-title">🛡️ Natural Language Access Policy Engine</h3>
+                <p className="admin-page__nl-card-sub">
+                  Configure table-level and column-level restrictions using plain English rules. Our AST validator automatically parses your intent and blocks unauthorized queries.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="admin-page__nl-presets">
+              <span className="admin-page__nl-presets-label">Quick Templates:</span>
+              {[
+                'Restrict salary column in faculty table for viewer role',
+                'Disallow DELETE operations on booking table',
+                'Restrict cgpa and grades from viewer role',
+                'Hide password and token fields from users',
+              ].map((preset, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="admin-page__nl-preset-btn"
+                  onClick={() => setNlRuleInput(preset)}
+                >
+                  💡 {preset}
+                </button>
+              ))}
+            </div>
+
+            {/* Rule Input Form */}
+            <form className="admin-page__nl-form" onSubmit={handleAddRule}>
+              <div className="admin-page__nl-input-row">
+                <input
+                  type="text"
+                  className="admin-page__input admin-page__nl-input"
+                  placeholder="e.g. Restrict salary column in faculty table for viewer role"
+                  value={nlRuleInput}
+                  onChange={(e) => setNlRuleInput(e.target.value)}
+                  disabled={nlRuleSubmitting}
+                />
+                <button
+                  type="submit"
+                  className="admin-page__btn-save admin-page__nl-submit-btn"
+                  disabled={nlRuleSubmitting || !nlRuleInput.trim()}
+                >
+                  {nlRuleSubmitting ? 'Parsing & Enforcing…' : 'Enforce Policy'}
+                </button>
+              </div>
+            </form>
+
+            {/* Feedback Message */}
+            {nlRuleMsg && (
+              <div className={`admin-page__nl-msg admin-page__nl-msg--${nlRuleMsg.type}`}>
+                {nlRuleMsg.text}
+              </div>
+            )}
+          </div>
+
+          {/* Active Policies List */}
+          <div className="admin-page__nl-list-header">
+            <h4>Active Enforced Policies ({nlRules.length})</h4>
+          </div>
+
+          {nlRuleLoading ? (
+            <div className="admin-page__nl-loading">Loading policies…</div>
+          ) : nlRules.length === 0 ? (
+            <div className="admin-page__nl-empty">
+              <span>No natural language security rules configured for this database.</span>
+              <p>Type a plain English rule above to instantly protect sensitive columns and tables.</p>
+            </div>
+          ) : (
+            <div className="admin-page__nl-rules-grid">
+              {nlRules.map((rule) => (
+                <div key={rule.id} className="admin-page__nl-rule-card">
+                  <div className="admin-page__nl-rule-top">
+                    <span className="admin-page__nl-badge-enforced">ENFORCED</span>
+                    <button
+                      type="button"
+                      className="admin-page__nl-revoke-btn"
+                      onClick={() => handleDeleteRule(rule.id)}
+                      title="Revoke and delete this security rule"
+                    >
+                      <IconTrash /> Revoke Policy
+                    </button>
+                  </div>
+
+                  <p className="admin-page__nl-rule-text">"{rule.rule_text}"</p>
+
+                  <div className="admin-page__nl-rule-tags">
+                    <span className="admin-page__nl-tag">
+                      <strong>Table:</strong> {rule.table_name || 'All Tables'}
+                    </span>
+                    {rule.column_name && (
+                      <span className="admin-page__nl-tag">
+                        <strong>Column:</strong> {rule.column_name}
+                      </span>
+                    )}
+                    <span className="admin-page__nl-tag">
+                      <strong>Role:</strong> {rule.target_role || 'All'}
+                    </span>
+                    {rule.restricted_operations && rule.restricted_operations.length > 0 && (
+                      <span className="admin-page__nl-tag admin-page__nl-tag--ops">
+                        <strong>Blocked Ops:</strong> {rule.restricted_operations.join(', ')}
+                      </span>
+                    )}
+                  </div>
+
+                  {rule.summary && (
+                    <div className="admin-page__nl-rule-summary">
+                      {rule.summary}
+                    </div>
+                  )}
+
+                  {rule.created_at && (
+                    <div className="admin-page__nl-rule-date">
+                      Enforced on {new Date(rule.created_at).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

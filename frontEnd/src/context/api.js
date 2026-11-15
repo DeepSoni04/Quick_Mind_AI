@@ -322,6 +322,31 @@ export async function updateDatabasePermissions(connId, tables) {
   });
 }
 
+/**
+ * Natural Language Security & Access Rules
+ */
+export async function getNaturalLanguageRules(connId) {
+  try {
+    return await apiFetch(`/databases/${connId}/security-rules`);
+  } catch (err) {
+    console.error('Failed to get security rules:', err);
+    return [];
+  }
+}
+
+export async function addNaturalLanguageRule(connId, ruleText) {
+  return apiFetch(`/databases/${connId}/security-rules`, {
+    method: 'POST',
+    body: JSON.stringify({ rule_text: ruleText }),
+  });
+}
+
+export async function deleteNaturalLanguageRule(connId, ruleId) {
+  return apiFetch(`/databases/${connId}/security-rules/${ruleId}`, {
+    method: 'DELETE',
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------------------

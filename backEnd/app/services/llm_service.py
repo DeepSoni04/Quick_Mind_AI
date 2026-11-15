@@ -120,8 +120,14 @@ Rules:
 2. Generate valid SQL syntax strictly using the target dialect ({db_type.upper()}).
 3. When matching dates without an explicit year (e.g. "1 November"), use the current reference year ({current_year}) instead of outdated years.
 4. Do NOT generate MySQL-specific syntax for PostgreSQL or vice-versa.
-5. If the user request is ambiguous, set "needs_clarification": true with a clear question and choices.
-5. Return strictly valid JSON containing:
+5. SMART AMBIGUITY CLARIFICATION:
+   - If the user query is vague, broad, or could lead to multiple distinct interpretations (e.g., 'show best records', 'top performers', 'recent orders' without timeframe, or multiple matching tables/metrics), do NOT guess blindly.
+   - Set "needs_clarification": true.
+   - Set "clarification_question": A polite, concise question asking how they want to filter or categorize the data.
+   - Set "clarification_choices": An array of 2 to 4 distinct, actionable options (e.g. ["Rank by CGPA", "Rank by Attendance %"] or ["Confirmed Bookings", "All Bookings"]).
+   - Set "sql_statements": [].
+   - If the query is clear and unambiguous, set "needs_clarification": false with null question and choices, and generate the SQL statements.
+6. Return strictly valid JSON containing:
 {{
   "status": "success",
   "intent": "Brief description of user intent",
@@ -148,6 +154,23 @@ class LLMProvider:
         schema_text: str,
         session_context: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    async def generate_summary(
+        self,
+        nl_query: str,
+        sql: str,
+        row_count: int,
+        sample_rows: Optional[List[Dict[str, Any]]] = None
+    ) -> str:
+        raise NotImplementedError
+
+    async def parse_security_rule(
+        self,
+        rule_text: str,
+        schema_text: str
+    ) -> Dict[str, Any]:
+        """Translates natural language security rules into structured permission definitions."""
         raise NotImplementedError
 
     # Alias so callers using generate_query also work
@@ -237,16 +260,33 @@ class GeminiProvider(LLMProvider):
         row_count: int,
         sample_rows: Optional[List[Dict[str, Any]]] = None
     ) -> str:
-        """Generates natural language summary of query results."""
+        """Generates natural language summary and analytical insights from query results."""
         if not self.api_key:
             return f"{row_count} records were returned for your query."
 
         try:
-            prompt = f"Summarize the query results in 1 friendly sentence:\nQuestion: {nl_query}\nRow Count: {row_count}"
+            sample_str = ""
+            if sample_rows:
+                import json as _json
+                sample_str = _json.dumps(sample_rows[:8], default=str)
+
+            prompt = f"""You are QueryMind AI, an intelligent enterprise data analyst.
+User Question: {nl_query}
+Executed Query: {sql}
+Total Rows: {row_count}
+Sample Result Data:
+{sample_str if sample_str else "No rows returned."}
+
+Task: Write a concise, executive insight summary (2-3 sentences max):
+- Highlight the primary finding or answer clearly.
+- Identify key trends, highest/lowest values, totals, or percentage distributions from the actual data.
+- Point out any notable anomaly, standout entity, or business takeaway.
+Do not just say 'X records returned'. Be descriptive, professional, and interpret the actual data values."""
+
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
             payload = {
                 "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 250}
+                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 350}
             }
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json=payload)
@@ -257,6 +297,60 @@ class GeminiProvider(LLMProvider):
             logger.warning(f"Gemini summary generation failed: {e}")
 
         return f"{row_count} records were returned."
+
+    async def parse_security_rule(
+        self,
+        rule_text: str,
+        schema_text: str
+    ) -> Dict[str, Any]:
+        """Translates natural language security policy into structured permission rule."""
+        if not self.api_key:
+            raise RuntimeError("Gemini provider unavailable: LLM_API_KEY not configured.")
+
+        prompt = f"""You are QueryMind AI Security & Governance Parser.
+Available Database Schema:
+{schema_text}
+
+Natural Language Security Rule from Admin:
+"{rule_text}"
+
+Task: Convert this rule into a structured security permission policy.
+Rules to follow:
+1. Match table names and column names case-insensitively with the available schema.
+2. If the rule says 'restrict salary column from faculty' or 'hide salary in faculty':
+   action = "restrict_column", table_name = "faculty", column_name = "salary", allowed = false
+3. If the rule restricts a whole table (e.g. 'block access to payments table'):
+   action = "restrict_table", table_name = "payments", column_name = null, allowed = false
+4. If the rule restricts specific operations (e.g. 'disallow DELETE on bookings'):
+   action = "restrict_operation", table_name = "bookings", column_name = null, restricted_operations = ["DELETE"]
+5. Determine target_role: 'viewer' (default if viewer mentioned), 'analyst', or 'all'.
+
+Return strictly valid JSON with this format:
+{{
+  "status": "success",
+  "table_name": "<exact_table_name_or_null>",
+  "column_name": "<exact_column_name_or_null>",
+  "action": "restrict_column" | "restrict_table" | "restrict_operation" | "allow_all",
+  "allowed": false,
+  "restricted_operations": ["DELETE"],
+  "target_role": "viewer" | "analyst" | "all",
+  "summary": "Clear one-sentence description of the enforced policy"
+}}"""
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 400}
+        }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, json=payload)
+            if resp.status_code == 200:
+                raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                import json as _json
+                clean = re.sub(r"^```(?:json)?\s*", "", raw_text, flags=re.MULTILINE)
+                clean = re.sub(r"\s*```$", "", clean, flags=re.MULTILINE).strip()
+                return _json.loads(clean)
+            raise RuntimeError(f"Gemini rule parsing error HTTP {resp.status_code}: {resp.text}")
 
 
 class OpenRouterProvider(LLMProvider):
@@ -333,7 +427,77 @@ class OpenRouterProvider(LLMProvider):
         row_count: int,
         sample_rows: Optional[List[Dict[str, Any]]] = None
     ) -> str:
+        if not self.api_key:
+            return f"{row_count} records were returned."
+        try:
+            sample_str = json.dumps(sample_rows[:8], default=str) if sample_rows else "No sample rows."
+            prompt = f"""You are QueryMind AI data analyst.
+User Question: {nl_query}
+Executed SQL: {sql}
+Total Rows: {row_count}
+Data Sample:
+{sample_str}
+
+Write a 2-3 sentence executive summary highlighting key findings, numbers, top items, and notable trends from the data. Be specific and insightful."""
+            payload = {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+            }
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{self.OPENROUTER_BASE_URL}/chat/completions",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                if resp.status_code == 200:
+                    return resp.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            logger.warning(f"OpenRouter summary generation failed: {e}")
         return f"{row_count} records were returned."
+
+    async def parse_security_rule(
+        self,
+        rule_text: str,
+        schema_text: str
+    ) -> Dict[str, Any]:
+        """Translates natural language security policy into structured permission rule via OpenRouter."""
+        prompt = f"""You are QueryMind AI Security & Governance Parser.
+Available Database Schema:
+{schema_text}
+
+Natural Language Security Rule from Admin:
+"{rule_text}"
+
+Convert this rule into a structured security permission policy.
+Return strictly valid JSON:
+{{
+  "status": "success",
+  "table_name": "<exact_table_name_or_null>",
+  "column_name": "<exact_column_name_or_null>",
+  "action": "restrict_column" | "restrict_table" | "restrict_operation" | "allow_all",
+  "allowed": false,
+  "restricted_operations": ["DELETE"],
+  "target_role": "viewer" | "analyst" | "all",
+  "summary": "Clear one-sentence description of the enforced policy"
+}}"""
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"}
+        }
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.post(
+                f"{self.OPENROUTER_BASE_URL}/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {self.api_key}"}
+            )
+            if resp.status_code == 200:
+                text_out = resp.json()["choices"][0]["message"]["content"].strip()
+                json_match = re.search(r"\{.*\}", text_out, re.DOTALL)
+                return json.loads(json_match.group(0)) if json_match else json.loads(text_out)
+        raise RuntimeError(f"OpenRouter rule parsing failed HTTP {resp.status_code}")
 
 
 class OpenAIProvider(LLMProvider):
@@ -394,7 +558,77 @@ class OpenAIProvider(LLMProvider):
         row_count: int,
         sample_rows: Optional[List[Dict[str, Any]]] = None
     ) -> str:
+        if not self.api_key:
+            return f"{row_count} records were returned."
+        try:
+            sample_str = json.dumps(sample_rows[:8], default=str) if sample_rows else "No sample rows."
+            prompt = f"""You are QueryMind AI data analyst.
+User Question: {nl_query}
+Executed SQL: {sql}
+Total Rows: {row_count}
+Data Sample:
+{sample_str}
+
+Write a 2-3 sentence executive summary highlighting key findings, numbers, top items, and notable trends from the data. Be specific and insightful."""
+            payload = {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+            }
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{self.OPENROUTER_BASE_URL}/chat/completions",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                if resp.status_code == 200:
+                    return resp.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            logger.warning(f"OpenRouter summary generation failed: {e}")
         return f"{row_count} records were returned."
+
+    async def parse_security_rule(
+        self,
+        rule_text: str,
+        schema_text: str
+    ) -> Dict[str, Any]:
+        """Translates natural language security policy into structured permission rule via OpenRouter."""
+        prompt = f"""You are QueryMind AI Security & Governance Parser.
+Available Database Schema:
+{schema_text}
+
+Natural Language Security Rule from Admin:
+"{rule_text}"
+
+Convert this rule into a structured security permission policy.
+Return strictly valid JSON:
+{{
+  "status": "success",
+  "table_name": "<exact_table_name_or_null>",
+  "column_name": "<exact_column_name_or_null>",
+  "action": "restrict_column" | "restrict_table" | "restrict_operation" | "allow_all",
+  "allowed": false,
+  "restricted_operations": ["DELETE"],
+  "target_role": "viewer" | "analyst" | "all",
+  "summary": "Clear one-sentence description of the enforced policy"
+}}"""
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"}
+        }
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.post(
+                f"{self.OPENROUTER_BASE_URL}/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {self.api_key}"}
+            )
+            if resp.status_code == 200:
+                text_out = resp.json()["choices"][0]["message"]["content"].strip()
+                json_match = re.search(r"\{.*\}", text_out, re.DOTALL)
+                return json.loads(json_match.group(0)) if json_match else json.loads(text_out)
+        raise RuntimeError(f"OpenRouter rule parsing failed HTTP {resp.status_code}")
 
 
 class AnthropicProvider(LLMProvider):
@@ -459,7 +693,77 @@ class AnthropicProvider(LLMProvider):
         row_count: int,
         sample_rows: Optional[List[Dict[str, Any]]] = None
     ) -> str:
+        if not self.api_key:
+            return f"{row_count} records were returned."
+        try:
+            sample_str = json.dumps(sample_rows[:8], default=str) if sample_rows else "No sample rows."
+            prompt = f"""You are QueryMind AI data analyst.
+User Question: {nl_query}
+Executed SQL: {sql}
+Total Rows: {row_count}
+Data Sample:
+{sample_str}
+
+Write a 2-3 sentence executive summary highlighting key findings, numbers, top items, and notable trends from the data. Be specific and insightful."""
+            payload = {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+            }
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{self.OPENROUTER_BASE_URL}/chat/completions",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                if resp.status_code == 200:
+                    return resp.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            logger.warning(f"OpenRouter summary generation failed: {e}")
         return f"{row_count} records were returned."
+
+    async def parse_security_rule(
+        self,
+        rule_text: str,
+        schema_text: str
+    ) -> Dict[str, Any]:
+        """Translates natural language security policy into structured permission rule via OpenRouter."""
+        prompt = f"""You are QueryMind AI Security & Governance Parser.
+Available Database Schema:
+{schema_text}
+
+Natural Language Security Rule from Admin:
+"{rule_text}"
+
+Convert this rule into a structured security permission policy.
+Return strictly valid JSON:
+{{
+  "status": "success",
+  "table_name": "<exact_table_name_or_null>",
+  "column_name": "<exact_column_name_or_null>",
+  "action": "restrict_column" | "restrict_table" | "restrict_operation" | "allow_all",
+  "allowed": false,
+  "restricted_operations": ["DELETE"],
+  "target_role": "viewer" | "analyst" | "all",
+  "summary": "Clear one-sentence description of the enforced policy"
+}}"""
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"}
+        }
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.post(
+                f"{self.OPENROUTER_BASE_URL}/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {self.api_key}"}
+            )
+            if resp.status_code == 200:
+                text_out = resp.json()["choices"][0]["message"]["content"].strip()
+                json_match = re.search(r"\{.*\}", text_out, re.DOTALL)
+                return json.loads(json_match.group(0)) if json_match else json.loads(text_out)
+        raise RuntimeError(f"OpenRouter rule parsing failed HTTP {resp.status_code}")
 
 
 class MockLLMProvider(LLMProvider):
@@ -478,7 +782,7 @@ class MockLLMProvider(LLMProvider):
         clean = nl_query.strip()
         lower = clean.lower()
 
-        # Ambiguity test case
+        # Ambiguity test cases
         if "ambiguous" in lower or (lower.startswith("show sales") and "sales_orders" in schema_text):
             return {
                 "status": "success",
@@ -487,6 +791,33 @@ class MockLLMProvider(LLMProvider):
                 "needs_clarification": True,
                 "clarification_question": "Could you clarify which sales table you want to query?",
                 "clarification_choices": ["sales", "sales_orders", "sales_summary"]
+            }
+        if "top performer" in lower or "best student" in lower:
+            return {
+                "status": "success",
+                "intent": "Ambiguity detected on ranking criteria",
+                "sql_statements": [],
+                "needs_clarification": True,
+                "clarification_question": "How would you like to rank top performers?",
+                "clarification_choices": ["Rank by CGPA", "Rank by Course Attendance %"]
+            }
+        if lower.strip() in ("show bookings", "bookings", "list bookings", "show all bookings"):
+            return {
+                "status": "success",
+                "intent": "Ambiguity detected on booking status",
+                "sql_statements": [],
+                "needs_clarification": True,
+                "clarification_question": "Which bookings would you like to view?",
+                "clarification_choices": ["Confirmed Bookings", "Completed Bookings", "All Bookings"]
+            }
+        if lower.strip() in ("show orders", "orders", "list orders"):
+            return {
+                "status": "success",
+                "intent": "Ambiguity detected on orders view",
+                "sql_statements": [],
+                "needs_clarification": True,
+                "clarification_question": "How would you like to inspect orders?",
+                "clarification_choices": ["Recent Orders", "Orders by Payment Method", "Orders by Status"]
             }
 
         # MongoDB: generate MQL instead of SQL
@@ -619,7 +950,94 @@ class MockLLMProvider(LLMProvider):
         row_count: int,
         sample_rows: Optional[List[Dict[str, Any]]] = None
     ) -> str:
-        return f"{row_count} records were returned."
+        if not sample_rows or len(sample_rows) == 0:
+            return f"{row_count} records were retrieved for your query."
+
+        first_row = sample_rows[0]
+        keys = list(first_row.keys())
+        parts = [f"Retrieved {row_count} records."]
+
+        cat_key = next((k for k in keys if isinstance(first_row.get(k), str)), None)
+        num_key = next((k for k in keys if isinstance(first_row.get(k), (int, float))), None)
+
+        if cat_key and num_key:
+            best = max(sample_rows, key=lambda x: float(x.get(num_key) or 0))
+            parts.append(f"Top entry is '{best.get(cat_key)}' with {num_key} of {best.get(num_key)}.")
+        elif num_key:
+            total = sum(float(r.get(num_key) or 0) for r in sample_rows)
+            parts.append(f"Calculated aggregate sum for {num_key} is {total:,.2f}.")
+        elif cat_key:
+            names = [str(r.get(cat_key)) for r in sample_rows[:3]]
+            parts.append(f"Sample entries include: {', '.join(names)}.")
+
+        return " ".join(parts)
+
+    async def parse_security_rule(
+        self,
+        rule_text: str,
+        schema_text: str
+    ) -> Dict[str, Any]:
+        """Translates natural language security policy into structured permission rule (offline mock)."""
+        schema_str = schema_text if isinstance(schema_text, str) else str(schema_text)
+        lower = rule_text.lower()
+        target_table = None
+        target_col = None
+
+        tables = re.findall(r"(?:Table|Collection):\s*([a-zA-Z0-9_]+)", schema_str, re.IGNORECASE)
+        for tbl in tables:
+            if tbl.lower() in lower:
+                target_table = tbl
+                break
+
+        common_cols = ["salary", "password", "email", "phone", "profilepic", "price", "amount", "budget", "cgpa", "grade"]
+        for c in common_cols:
+            if c in lower:
+                target_col = c
+                break
+
+        target_role = "viewer"
+        if "analyst" in lower:
+            target_role = "analyst"
+        elif "all" in lower:
+            target_role = "all"
+
+        if "delete" in lower or "drop" in lower or "remove" in lower:
+            t = target_table or (tables[0] if tables else "Booking")
+            return {
+                "status": "success",
+                "table_name": t,
+                "column_name": None,
+                "action": "restrict_operation",
+                "allowed": True,
+                "restricted_operations": ["DELETE"],
+                "target_role": target_role,
+                "summary": f"Disallowed DELETE operations on table '{t}' for {target_role} role."
+            }
+
+        if target_col:
+            t = target_table or (tables[0] if tables else "faculty")
+            return {
+                "status": "success",
+                "table_name": t,
+                "column_name": target_col,
+                "action": "restrict_column",
+                "allowed": False,
+                "restricted_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+                "target_role": target_role,
+                "summary": f"Restricted access to column '{target_col}' on table '{t}' for {target_role} role."
+            }
+
+        t = target_table or (tables[0] if tables else "departments")
+        return {
+            "status": "success",
+            "table_name": t,
+            "column_name": None,
+            "action": "restrict_table",
+            "allowed": False,
+            "restricted_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "target_role": target_role,
+            "summary": f"Restricted access to table '{t}' for {target_role} role."
+        }
 
 
 class FallbackLLMProvider(LLMProvider):
@@ -666,6 +1084,23 @@ class FallbackLLMProvider(LLMProvider):
             except Exception as e:
                 logger.warning(f"Summary generation failed via {provider.__class__.__name__}: {e}")
         return f"{row_count} records were returned."
+
+    async def parse_security_rule(
+        self,
+        rule_text: str,
+        schema_text: str
+    ) -> Dict[str, Any]:
+        last_err: Exception = RuntimeError("No LLM providers configured.")
+        for provider in self.providers:
+            try:
+                return await provider.parse_security_rule(rule_text, schema_text)
+            except Exception as e:
+                logger.warning(f"parse_security_rule failed via {provider.__class__.__name__}: {e}. Trying next provider.")
+                last_err = e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"All LLM providers failed to parse security rule. Last error: {last_err}"
+        )
 
 
 def _build_provider(name: str) -> Optional[LLMProvider]:

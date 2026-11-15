@@ -251,15 +251,15 @@ function CopyQueryButton({ textToCopy }) {
 }
 
 // ─── SQL Approval Screen (Natural Language -> SQL -> Validate -> Approval Flow) ──
-function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate }) {
+function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate, onClarify }) {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editedSql, setEditedSql]       = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError]               = useState('');
 
-  if (!queryRes || !queryRes.statements) return null;
+  if (!queryRes) return null;
 
-  const { query_id, nl_query, status, statements, clarification_needed, clarification_question, clarification_choices } = queryRes;
+  const { query_id, nl_query, status, statements = [], clarification_needed, clarification_question, clarification_choices } = queryRes;
 
   const isBlocked = status === 'blocked';
 
@@ -299,28 +299,42 @@ function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate 
       <div className="action-content" style={{ maxWidth: 760, animation: 'slideUp 0.45s ease-out both' }}>
         <div className="action-header">
           <span className="action-eyebrow--update">
-            {isBlocked ? 'Security Policy Block' : 'SQL Confirmation Required'}
+            {clarification_needed ? 'Smart Ambiguity Clarification' : isBlocked ? 'Security Policy Block' : 'SQL Confirmation Required'}
           </span>
           <p className="action-query">"{nl_query}"</p>
         </div>
 
         {/* Ambiguity Clarification Prompt */}
         {clarification_needed && (
-          <div className="action-card action-card--update" style={{ borderColor: 'rgba(241,196,15,0.4)' }}>
-            <div className="action-card-header">
-              <span className="action-card-title" style={{ color: '#f1c40f' }}>Clarification Needed</span>
+          <div className="action-card action-card--update" style={{ borderColor: 'rgba(245,158,11,0.5)', background: 'linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(20,25,35,0.7) 100%)', marginBottom: 20 }}>
+            <div className="action-card-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18 }}>💡</span>
+              <span className="action-card-title" style={{ color: '#fbbf24', fontWeight: 600 }}>Ambiguity Detected — Clarify Intent</span>
             </div>
             <div className="action-card-body">
-              <p style={{ color: '#e0e0e6', fontSize: 14 }}>{clarification_question}</p>
+              <p style={{ color: '#f3f4f6', fontSize: 14.5, fontWeight: 500, lineHeight: 1.5 }}>{clarification_question}</p>
+              <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 4 }}>Select an option below to generate the exact query:</p>
               {clarification_choices && (
-                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
                   {clarification_choices.map((choice) => (
                     <button
                       key={choice}
+                      type="button"
                       className="example-pill"
-                      onClick={() => onRevalidate(query_id, `SELECT * FROM ${choice};`)}
+                      style={{
+                        padding: '9px 18px',
+                        background: 'rgba(245,158,11,0.18)',
+                        border: '1px solid rgba(245,158,11,0.45)',
+                        color: '#fef08a',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        borderRadius: 20,
+                        transition: 'all 0.2s ease',
+                      }}
+                      onClick={() => onClarify ? onClarify(`${nl_query} (${choice})`) : onRevalidate(query_id, `SELECT * FROM ${choice};`)}
                     >
-                      {choice}
+                      👉 {choice}
                     </button>
                   ))}
                 </div>
@@ -474,7 +488,7 @@ function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate 
 
         <div className="action-buttons-row">
           <button type="button" className="btn-cancel" onClick={onCancel}>Cancel</button>
-          {!isBlocked && (
+          {!isBlocked && statements && statements.length > 0 && (
             <button
               type="button"
               className="btn-confirm-action btn-confirm-action--update"
@@ -806,6 +820,16 @@ function ResultScreen({ query, data, onNewQuery, onRegenerate, queryId }) {
         </div>
       </header>
 
+      {summary && (
+        <div className="ai-insights-card">
+          <div className="ai-insights-header">
+            <span className="ai-insights-badge">✨ AI Insights &amp; Data Summary</span>
+            <span className="ai-insights-timestamp">Automated Analysis</span>
+          </div>
+          <p className="ai-insights-body">{summary}</p>
+        </div>
+      )}
+
       <div className="result-table-container">
         {columns.length > 0 ? (
           <table className="result-table">
@@ -977,7 +1001,7 @@ export default function ChatPage({ view = 'workspace' }) {
       </div>
     </div>
   );
-  if (currentView === 'approval')   return <ApprovalScreen queryRes={queryResult} onApproveAndExecute={handleApproveAndExecute} onCancel={handleCancel} onRevalidate={handleRevalidate} />;
+  if (currentView === 'approval')   return <ApprovalScreen queryRes={queryResult} onApproveAndExecute={handleApproveAndExecute} onCancel={handleCancel} onRevalidate={handleRevalidate} onClarify={handleRunQuery} />;
   if (currentView === 'result')     return <ResultScreen query={activeQuery} data={queryResult} onNewQuery={handleNewQuery} onRegenerate={handleRegenerate} queryId={queryResult?.query_id} />;
 
   return (

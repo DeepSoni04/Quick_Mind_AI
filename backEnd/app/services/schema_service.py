@@ -396,6 +396,159 @@ class SchemaService:
                 }
         return {"tables": tables_dict}
 
+    async def apply_natural_language_rule(
+        self, conn_id: str, user_id: str, rule_text: str
+    ) -> Dict[str, Any]:
+        """Parse natural language security rule via LLM and enforce it in schema_access."""
+        from app.services.llm_service import get_llm_provider
+
+        # 1. Discover target schema
+        schema_info = await self.discover_schema(conn_id, user_id)
+
+        # Build schema representation
+        schema_lines = []
+        for t in schema_info.tables:
+            col_names = [f"{c.name}:{c.type}" for c in t.columns]
+            schema_lines.append(f"Table: {t.name} ({', '.join(col_names)})")
+        schema_text = "\n".join(schema_lines)
+
+        # 2. Parse rule with LLM
+        llm = get_llm_provider()
+        parsed = await llm.parse_security_rule(rule_text=rule_text, schema_text=schema_text)
+
+        table_name = parsed.get("table_name")
+        column_name = parsed.get("column_name")
+        action = parsed.get("action", "restrict_column")
+        allowed = parsed.get("allowed", False)
+        restricted_ops = parsed.get("restricted_operations", ["DELETE"])
+        target_role = parsed.get("target_role", "viewer")
+
+        now = utc_now()
+        rule_doc = {
+            "database_id": conn_id,
+            "created_by": user_id,
+            "rule_text": rule_text.strip(),
+            "table_name": table_name,
+            "column_name": column_name,
+            "action": action,
+            "target_role": target_role,
+            "allowed": allowed,
+            "restricted_operations": restricted_ops,
+            "summary": parsed.get("summary", rule_text),
+            "created_at": now
+        }
+
+        # 3. Apply into schema_access collection (which SQLValidator reads)
+        if table_name:
+            if column_name:
+                col_key = column_name.lower()
+                await self.db.schema_access.update_one(
+                    {"database_id": conn_id, "table_name": table_name},
+                    {
+                        "$set": {
+                            f"columns.{col_key}.allowed": allowed,
+                            f"columns.{col_key}.allowed_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"] if allowed else [],
+                            f"columns.{col_key}.rule_text": rule_text,
+                            "updated_at": now
+                        },
+                        "$setOnInsert": {
+                            "database_id": conn_id,
+                            "table_name": table_name,
+                            "allowed": True,
+                            "allowed_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+                            "created_at": now
+                        }
+                    },
+                    upsert=True
+                )
+            elif action == "restrict_operation":
+                all_ops = ["SELECT", "INSERT", "UPDATE", "DELETE"]
+                remaining_ops = [op for op in all_ops if op.upper() not in [ro.upper() for ro in restricted_ops]]
+                await self.db.schema_access.update_one(
+                    {"database_id": conn_id, "table_name": table_name},
+                    {
+                        "$set": {
+                            "allowed_operations": remaining_ops,
+                            "rule_text": rule_text,
+                            "updated_at": now
+                        },
+                        "$setOnInsert": {
+                            "database_id": conn_id,
+                            "table_name": table_name,
+                            "allowed": True,
+                            "columns": {},
+                            "created_at": now
+                        }
+                    },
+                    upsert=True
+                )
+            else:
+                await self.db.schema_access.update_one(
+                    {"database_id": conn_id, "table_name": table_name},
+                    {
+                        "$set": {
+                            "allowed": allowed,
+                            "rule_text": rule_text,
+                            "updated_at": now
+                        },
+                        "$setOnInsert": {
+                            "database_id": conn_id,
+                            "table_name": table_name,
+                            "allowed_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+                            "columns": {},
+                            "created_at": now
+                        }
+                    },
+                    upsert=True
+                )
+
+        # 4. Save into natural_language_security_rules collection
+        res = await self.db.natural_language_security_rules.insert_one(rule_doc)
+        rule_doc["id"] = str(res.inserted_id)
+        if "_id" in rule_doc:
+            del rule_doc["_id"]
+        return rule_doc
+
+    async def get_natural_language_rules(self, conn_id: str) -> List[Dict[str, Any]]:
+        rules = []
+        cursor = self.db.natural_language_security_rules.find({"database_id": conn_id}).sort("created_at", -1)
+        async for r in cursor:
+            r["id"] = str(r["_id"])
+            del r["_id"]
+            rules.append(r)
+        return rules
+
+    async def delete_natural_language_rule(self, conn_id: str, rule_id: str) -> bool:
+        obj_id = ObjectId(rule_id)
+        rule = await self.db.natural_language_security_rules.find_one({"_id": obj_id, "database_id": conn_id})
+        if not rule:
+            return False
+
+        table_name = rule.get("table_name")
+        column_name = rule.get("column_name")
+        action = rule.get("action")
+
+        if table_name:
+            if column_name:
+                col_key = column_name.lower()
+                await self.db.schema_access.update_one(
+                    {"database_id": conn_id, "table_name": table_name},
+                    {"$set": {f"columns.{col_key}.allowed": True, f"columns.{col_key}.allowed_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"]}}
+                )
+            elif action == "restrict_operation":
+                await self.db.schema_access.update_one(
+                    {"database_id": conn_id, "table_name": table_name},
+                    {"$set": {"allowed_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"]}}
+                )
+            else:
+                await self.db.schema_access.update_one(
+                    {"database_id": conn_id, "table_name": table_name},
+                    {"$set": {"allowed": True}}
+                )
+
+        await self.db.natural_language_security_rules.delete_one({"_id": obj_id})
+        return True
+
 
 # ------------------------------------------------------------------
 # Helpers
