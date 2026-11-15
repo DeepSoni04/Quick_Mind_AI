@@ -794,7 +794,9 @@ function ResultScreen({ query, data, onNewQuery, onRegenerate, queryId }) {
         <div className="result-header-left">
           <div className="result-status-row">
             <div className="result-status-dot" />
-            <span className="result-status-text">{rowCount} records ({execTime}ms)</span>
+            <span className="result-status-text">
+              {columns.length === 0 ? `${rowCount} row${rowCount === 1 ? '' : 's'} affected` : `${rowCount} records`} ({execTime}ms)
+            </span>
           </div>
           <span className="result-query-text">{query}</span>
           <p className="result-summary-text">{summary}</p>

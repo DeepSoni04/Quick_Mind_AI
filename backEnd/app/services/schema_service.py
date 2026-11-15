@@ -376,6 +376,7 @@ class SchemaService:
                 for col_name, c_data in doc.get("columns", {}).items():
                     cols[col_name.lower()] = {
                         "allowed": c_data.get("allowed", True),
+                        "target_role": c_data.get("target_role", "all"),
                         "allowed_operations": [
                             op.upper()
                             for op in c_data.get(
@@ -449,6 +450,7 @@ class SchemaService:
                         "$set": {
                             f"columns.{col_key}.allowed": allowed,
                             f"columns.{col_key}.allowed_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"] if allowed else [],
+                            f"columns.{col_key}.target_role": target_role,
                             f"columns.{col_key}.rule_text": rule_text,
                             "updated_at": now
                         },

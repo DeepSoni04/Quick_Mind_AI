@@ -250,25 +250,45 @@ class SQLValidator:
 
                     # 6c. Column-level permissions on Table
                     cols_conf = t_conf.get("columns", {})
+
+                    # Check if SELECT * queries a table that has column restrictions for this role
+                    has_star = bool(ast.find(exp.Star))
+                    if has_star:
+                        for col_k, c_conf in cols_conf.items():
+                            t_role = c_conf.get("target_role", "all").lower()
+                            if not c_conf.get("allowed", True) and (t_role == "all" or t_role == user_role.lower()):
+                                return SQLStatementInfo(
+                                    statement_index=0,
+                                    sql=sql_str,
+                                    operation=operation,
+                                    validation_status="blocked",
+                                    validation_message=f"Access to column '{col_k}' on table '{t_name}' is denied for {user_role} role by permission policy (wildcard SELECT * is disallowed).",
+                                    approval_status="pending",
+                                    warning_broad_impact=False,
+                                    affected_table=affected_table,
+                                    tables=tables
+                                )
+
                     for col_tbl, col_name in referenced_columns:
                         # Match if column belongs to this table or table was omitted in single-table query
                         if col_tbl is None or col_tbl == t_key:
                             if col_name in cols_conf:
                                 c_conf = cols_conf[col_name]
-                                if not c_conf.get("allowed", True):
+                                t_role = c_conf.get("target_role", "all").lower()
+                                if not c_conf.get("allowed", True) and (t_role == "all" or t_role == user_role.lower()):
                                     return SQLStatementInfo(
                                         statement_index=0,
                                         sql=sql_str,
                                         operation=operation,
                                         validation_status="blocked",
-                                        validation_message=f"Access to column '{col_name}' on table '{t_name}' is denied by permission policy.",
+                                        validation_message=f"Access to column '{col_name}' on table '{t_name}' is denied for {user_role} role by permission policy.",
                                         approval_status="pending",
                                         warning_broad_impact=False,
                                         affected_table=affected_table,
                                         tables=tables
                                     )
                                 c_ops = [op.upper() for op in c_conf.get("allowed_operations", ["SELECT", "INSERT", "UPDATE", "DELETE"])]
-                                if operation not in c_ops:
+                                if operation not in c_ops and (t_role == "all" or t_role == user_role.lower()):
                                     return SQLStatementInfo(
                                         statement_index=0,
                                         sql=sql_str,

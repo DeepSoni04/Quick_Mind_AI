@@ -293,10 +293,10 @@ Do not just say 'X records returned'. Be descriptive, professional, and interpre
                 if resp.status_code == 200:
                     data = resp.json()
                     return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                raise RuntimeError(f"Gemini API returned HTTP {resp.status_code}: {resp.text}")
         except Exception as e:
-            logger.warning(f"Gemini summary generation failed: {e}")
-
-        return f"{row_count} records were returned."
+            logger.warning(f"Gemini summary generation failed: {e}. Falling back to next provider...")
+            raise
 
     async def parse_security_rule(
         self,
@@ -452,9 +452,10 @@ Write a 2-3 sentence executive summary highlighting key findings, numbers, top i
                 )
                 if resp.status_code == 200:
                     return resp.json()["choices"][0]["message"]["content"].strip()
+                raise RuntimeError(f"OpenRouter returned HTTP {resp.status_code}")
         except Exception as e:
-            logger.warning(f"OpenRouter summary generation failed: {e}")
-        return f"{row_count} records were returned."
+            logger.warning(f"OpenRouter summary generation failed: {e}. Falling back...")
+            raise
 
     async def parse_security_rule(
         self,
@@ -583,9 +584,10 @@ Write a 2-3 sentence executive summary highlighting key findings, numbers, top i
                 )
                 if resp.status_code == 200:
                     return resp.json()["choices"][0]["message"]["content"].strip()
+                raise RuntimeError(f"OpenRouter returned HTTP {resp.status_code}")
         except Exception as e:
-            logger.warning(f"OpenRouter summary generation failed: {e}")
-        return f"{row_count} records were returned."
+            logger.warning(f"OpenRouter summary generation failed: {e}. Falling back...")
+            raise
 
     async def parse_security_rule(
         self,
@@ -718,9 +720,10 @@ Write a 2-3 sentence executive summary highlighting key findings, numbers, top i
                 )
                 if resp.status_code == 200:
                     return resp.json()["choices"][0]["message"]["content"].strip()
+                raise RuntimeError(f"OpenRouter returned HTTP {resp.status_code}")
         except Exception as e:
-            logger.warning(f"OpenRouter summary generation failed: {e}")
-        return f"{row_count} records were returned."
+            logger.warning(f"OpenRouter summary generation failed: {e}. Falling back...")
+            raise
 
     async def parse_security_rule(
         self,
@@ -940,13 +943,16 @@ class MockLLMProvider(LLMProvider):
         quote = "`" if db_type == "mysql" else '"'
 
         if op == "SELECT":
-            sql = f"SELECT * FROM {quote}{target_table}{quote}"
-            if "ahmedabad" in lower:
-                sql += f" WHERE {quote}city{quote} = 'Ahmedabad'"
-            elif "unpaid" in lower or "pending" in lower:
-                sql += f" WHERE {quote}status{quote} = 'Pending'"
-            elif "inactive" in lower:
-                sql += f" WHERE {quote}status{quote} = 'Inactive'"
+            if "salary" in lower or "salaries" in lower:
+                sql = f"SELECT first_name, last_name, salary FROM {quote}{target_table}{quote}"
+            else:
+                sql = f"SELECT * FROM {quote}{target_table}{quote}"
+                if "ahmedabad" in lower:
+                    sql += f" WHERE {quote}city{quote} = 'Ahmedabad'"
+                elif "unpaid" in lower or "pending" in lower:
+                    sql += f" WHERE {quote}status{quote} = 'Pending'"
+                elif "inactive" in lower:
+                    sql += f" WHERE {quote}status{quote} = 'Inactive'"
         elif op == "UPDATE":
             sql = f"UPDATE {quote}{target_table}{quote} SET {quote}department{quote} = 'Computer Science' WHERE {quote}name{quote} = 'Rahul Mehta'"
         elif op == "DELETE":
@@ -1199,22 +1205,52 @@ class MockLLMProvider(LLMProvider):
 
         first_row = sample_rows[0]
         keys = list(first_row.keys())
-        parts = [f"Retrieved {row_count} records."]
 
-        cat_key = next((k for k in keys if isinstance(first_row.get(k), str)), None)
-        num_key = next((k for k in keys if isinstance(first_row.get(k), (int, float))), None)
+        # Ignore technical ID / surrogate keys for numeric statistics
+        def is_id_key(k: str) -> bool:
+            k_low = k.lower()
+            return k_low in ("id", "index", "row_num") or k_low.endswith("_id") or (k_low.endswith("id") and len(k_low) <= 4)
 
-        if cat_key and num_key:
-            best = max(sample_rows, key=lambda x: float(x.get(num_key) or 0))
-            parts.append(f"Top entry is '{best.get(cat_key)}' with {num_key} of {best.get(num_key)}.")
-        elif num_key:
-            total = sum(float(r.get(num_key) or 0) for r in sample_rows)
-            parts.append(f"Calculated aggregate sum for {num_key} is {total:,.2f}.")
-        elif cat_key:
-            names = [str(r.get(cat_key)) for r in sample_rows[:3]]
-            parts.append(f"Sample entries include: {', '.join(names)}.")
+        metric_keys = [k for k in keys if not is_id_key(k) and isinstance(first_row.get(k), (int, float))]
+        text_keys = [k for k in keys if not is_id_key(k) and isinstance(first_row.get(k), str)]
 
-        return " ".join(parts)
+        # Find best name/label key
+        name_key = next((k for k in text_keys if any(x in k.lower() for x in ("name", "title", "user", "city", "department", "code", "email"))), None)
+        if not name_key and text_keys:
+            name_key = text_keys[0]
+
+        # Find primary metric key
+        metric_key = next((k for k in metric_keys if any(x in k.lower() for x in ("salary", "cgpa", "amount", "price", "total", "revenue", "budget", "score", "attendance", "rate", "cost", "balance"))), None)
+        if not metric_key and metric_keys:
+            metric_key = metric_keys[0]
+
+        insights = [f"Retrieved {row_count} record(s)."]
+
+        if metric_key:
+            vals = [float(r.get(metric_key) or 0) for r in sample_rows]
+            avg_val = sum(vals) / len(vals) if vals else 0
+            max_idx = vals.index(max(vals)) if vals else 0
+            min_idx = vals.index(min(vals)) if vals else 0
+
+            max_row = sample_rows[max_idx]
+            min_row = sample_rows[min_idx]
+
+            max_label = f" ({max_row.get(name_key)})" if name_key and max_row.get(name_key) else ""
+            min_label = f" ({min_row.get(name_key)})" if name_key and min_row.get(name_key) else ""
+
+            fmt_max = f"{vals[max_idx]:,.2f}".rstrip("0").rstrip(".")
+            fmt_min = f"{vals[min_idx]:,.2f}".rstrip("0").rstrip(".")
+            fmt_avg = f"{avg_val:,.2f}".rstrip("0").rstrip(".")
+
+            insights.append(
+                f"Highest {metric_key} is {fmt_max}{max_label} and lowest is {fmt_min}{min_label}, with a cohort average of {fmt_avg}."
+            )
+        elif name_key:
+            sample_names = [str(r.get(name_key)) for r in sample_rows[:3] if r.get(name_key)]
+            if sample_names:
+                insights.append(f"Sample entries include: {', '.join(sample_names)}.")
+
+        return " ".join(insights)
 
     async def parse_security_rule(
         self,
@@ -1240,9 +1276,14 @@ class MockLLMProvider(LLMProvider):
                 break
 
         target_role = "viewer"
-        if "analyst" in lower:
+        if "all" in lower or "everyone" in lower or "user" in lower or "admin" in lower:
+            target_role = "all"
+        elif "analyst" in lower:
             target_role = "analyst"
-        elif "all" in lower:
+        elif "viewer" in lower:
+            target_role = "viewer"
+        else:
+            # Default to all roles when rule is a general restriction
             target_role = "all"
 
         if "delete" in lower or "drop" in lower or "remove" in lower:

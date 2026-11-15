@@ -157,7 +157,7 @@ class ExecutionService:
                 if db_type in ("mongodb", "mongo"):
                     # Prefer the structured mql object; fall back to the sql string
                     mql_obj = stmt.get("mql") or stmt.get("sql", "")
-                    cols, row_data, elapsed_ms, stmt_truncated = await self._execute_mongodb_query(
+                    cols, row_data, elapsed_ms, stmt_truncated, affected_count = await self._execute_mongodb_query(
                         connection_string=creds["connection_string"],
                         database_name=creds["database_name"],
                         mql=mql_obj,
@@ -165,7 +165,7 @@ class ExecutionService:
                         timeout=timeout_sec
                     )
                 else:
-                    cols, row_data, elapsed_ms, stmt_truncated = self._execute_single_sql(
+                    cols, row_data, elapsed_ms, stmt_truncated, affected_count = self._execute_single_sql(
                         db_type=creds["db_type"],
                         host=creds["host"],
                         port=creds["port"],
@@ -186,6 +186,8 @@ class ExecutionService:
                 if row_data:
                     rows.extend(row_data)
                     total_rows += len(row_data)
+                elif affected_count > 0:
+                    total_rows += affected_count
 
         except Exception as e:
             raw_err = str(e)
@@ -241,22 +243,42 @@ class ExecutionService:
 
         # Generate summary
         summary = None
-        try:
-            llm = get_llm_provider()
-            sample_data = []
-            if columns and rows:
-                for r in rows[:10]:
-                    sample_data.append({col: val for col, val in zip(columns, r)})
+        first_sql = executed_sqls[0].strip() if executed_sqls else ""
+        first_word = first_sql.split()[0].upper() if first_sql else "SELECT"
+        if first_word in ["INSERT", "UPDATE", "DELETE"]:
+            table_match = re.search(r'(?:INTO|FROM|UPDATE)\s+[`"]?([a-zA-Z0-9_]+)[`"]?', first_sql, re.IGNORECASE)
+            tbl = table_match.group(1) if table_match else "table"
+            affected = total_rows if total_rows > 0 else (rows[0][0] if rows and len(rows[0]) > 0 else 1)
+            if first_word == "INSERT":
+                summary = f"Operation executed successfully. Inserted {affected} new record into {tbl}."
+            elif first_word == "UPDATE":
+                summary = f"Operation executed successfully. Updated {affected} record(s) in {tbl}."
+            elif first_word == "DELETE":
+                summary = f"Operation executed successfully. Deleted {affected} record(s) from {tbl}."
+        elif db_type in ("mongodb", "mongo") and any(k in first_sql.lower() for k in ("insert_one", "insert_many", "update_one", "update_many", "delete_one", "delete_many")):
+            if "insert" in first_sql.lower():
+                summary = f"Operation executed successfully. Inserted {total_rows} document(s) into collection."
+            elif "update" in first_sql.lower():
+                summary = f"Operation executed successfully. Updated {total_rows} document(s) in collection."
+            elif "delete" in first_sql.lower():
+                summary = f"Operation executed successfully. Deleted {total_rows} document(s) from collection."
+        else:
+            try:
+                llm = get_llm_provider()
+                sample_data = []
+                if columns and rows:
+                    for r in rows[:10]:
+                        sample_data.append({col: val for col, val in zip(columns, r)})
 
-            summary = await llm.generate_summary(
-                nl_query=query["nl_query"],
-                sql="; ".join(executed_sqls),
-                row_count=total_rows,
-                sample_rows=sample_data
-            )
-        except Exception as summary_err:
-            logger.warning(f"Summary generation notice: {summary_err}")
-            summary = f"{total_rows} records returned."
+                summary = await llm.generate_summary(
+                    nl_query=query["nl_query"],
+                    sql="; ".join(executed_sqls),
+                    row_count=total_rows,
+                    sample_rows=sample_data
+                )
+            except Exception as summary_err:
+                logger.warning(f"Summary generation notice: {summary_err}")
+                summary = f"{total_rows} records returned."
 
         await self.db.query_logs.insert_one({
             "query_id": query_id,
@@ -326,7 +348,7 @@ class ExecutionService:
             else:
                 count_sql = f'SELECT COUNT(*) FROM "{table}" {where_clause}'
 
-            cols, row_data, _, _ = self._execute_single_sql(
+            cols, row_data, _, _, _ = self._execute_single_sql(
                 db_type=db_type,
                 host=host,
                 port=port,
@@ -376,12 +398,13 @@ class ExecutionService:
         sql: str,
         timeout: int = 20,
         max_rows: int = 1000
-    ) -> Tuple[List[str], List[List[Any]], int, bool]:
+    ) -> Tuple[List[str], List[List[Any]], int, bool, int]:
         """Execute a single SQL string against target DB with server-side timeout and fetch limits."""
         start = time.time()
         cols = []
         rows = []
         truncated = False
+        affected = 0
         db_type_low = db_type.lower()
 
         if db_type_low == "mysql":
@@ -413,6 +436,11 @@ class ExecutionService:
                         else:
                             raw_rows = fetched
                         rows = [[self._serialize_row_cell(c) for c in r] for r in raw_rows]
+                        affected = len(rows)
+                    else:
+                        affected = cursor.rowcount if cursor.rowcount >= 0 else 1
+                        cols = []
+                        rows = []
             finally:
                 conn.close()
 
@@ -444,13 +472,18 @@ class ExecutionService:
                         else:
                             raw_rows = fetched
                         rows = [[self._serialize_row_cell(c) for c in r] for r in raw_rows]
+                        affected = len(rows)
+                    else:
+                        affected = cursor.rowcount if cursor.rowcount >= 0 else 1
+                        cols = []
+                        rows = []
             finally:
                 conn.close()
         else:
             raise ValueError(f"Unsupported target database dialect '{db_type}'.")
 
         elapsed_ms = int((time.time() - start) * 1000)
-        return cols, rows, elapsed_ms, truncated
+        return cols, rows, elapsed_ms, truncated, affected
 
     # ------------------------------------------------------------------
     # Private: MongoDB execution
@@ -463,7 +496,7 @@ class ExecutionService:
         mql,  # Either a structured dict (from LLM) or a raw string (legacy)
         max_rows: int = 1000,
         timeout: int = 20,
-    ) -> Tuple[List[str], List[List[Any]], int, bool]:
+    ) -> Tuple[List[str], List[List[Any]], int, bool, int]:
         """
         Execute a MongoDB operation.
 
@@ -603,7 +636,7 @@ class ExecutionService:
                 count = col.count_documents(filt)
                 client.close()
                 elapsed_ms = int((time.time() - start) * 1000)
-                return ["count"], [[str(count)]], elapsed_ms, False
+                return ["count"], [[str(count)]], elapsed_ms, False, 1
 
             elif operation == "aggregate":
                 if not pipeline:
@@ -614,14 +647,14 @@ class ExecutionService:
                 res = col.insert_one(document)
                 client.close()
                 elapsed_ms = int((time.time() - start) * 1000)
-                return ["inserted_id", "acknowledged"], [[str(res.inserted_id), str(res.acknowledged)]], elapsed_ms, False
+                return ["inserted_id", "acknowledged"], [[str(res.inserted_id), str(res.acknowledged)]], elapsed_ms, False, 1
 
             elif operation == "insert_many":
                 res = col.insert_many(documents)
                 client.close()
                 elapsed_ms = int((time.time() - start) * 1000)
                 ids = ", ".join(str(i) for i in res.inserted_ids)
-                return ["inserted_count", "inserted_ids"], [[str(len(res.inserted_ids)), ids]], elapsed_ms, False
+                return ["inserted_count", "inserted_ids"], [[str(len(res.inserted_ids)), ids]], elapsed_ms, False, len(res.inserted_ids)
 
             elif operation in ("update_one", "update_many"):
                 if not update:
@@ -635,7 +668,7 @@ class ExecutionService:
                 return (
                     ["matched_count", "modified_count", "acknowledged"],
                     [[str(res.matched_count), str(res.modified_count), str(res.acknowledged)]],
-                    elapsed_ms, False
+                    elapsed_ms, False, res.modified_count
                 )
 
             elif operation in ("delete_one", "delete_many"):
@@ -648,7 +681,7 @@ class ExecutionService:
                 return (
                     ["deleted_count", "acknowledged"],
                     [[str(res.deleted_count), str(res.acknowledged)]],
-                    elapsed_ms, False
+                    elapsed_ms, False, res.deleted_count
                 )
 
             else:
@@ -664,7 +697,7 @@ class ExecutionService:
 
             if not docs:
                 elapsed_ms = int((time.time() - start) * 1000)
-                return [], [], elapsed_ms, truncated
+                return [], [], elapsed_ms, truncated, 0
 
             # Flatten docs into columnar rows
             all_keys: List[str] = []
@@ -690,7 +723,7 @@ class ExecutionService:
                 rows.append(row)
 
             elapsed_ms = int((time.time() - start) * 1000)
-            return columns, rows, elapsed_ms, truncated
+            return columns, rows, elapsed_ms, truncated, len(docs)
 
         except Exception as e:
             raise RuntimeError(f"MongoDB query execution error: {e}") from e
