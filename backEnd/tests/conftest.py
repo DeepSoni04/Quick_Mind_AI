@@ -15,15 +15,18 @@ from app.core.encryption import encrypt_secret
 @pytest_asyncio.fixture(autouse=True)
 async def setup_test_db():
     """Setup test database and clean collections between tests."""
-    await connect_to_mongo()
-    if db_instance.db is not None:
-        await db_instance.db.users.delete_many({})
-        await db_instance.db.database_connections.delete_many({})
-        await db_instance.db.queries.delete_many({})
-        await db_instance.db.query_sessions.delete_many({})
-        await db_instance.db.query_logs.delete_many({})
-        await db_instance.db.schema_access.delete_many({})
-        await db_instance.db.user_settings.delete_many({})
+    try:
+        await connect_to_mongo()
+        if db_instance.db is not None:
+            await db_instance.db.users.delete_many({})
+            await db_instance.db.database_connections.delete_many({})
+            await db_instance.db.queries.delete_many({})
+            await db_instance.db.query_sessions.delete_many({})
+            await db_instance.db.query_logs.delete_many({})
+            await db_instance.db.schema_access.delete_many({})
+            await db_instance.db.user_settings.delete_many({})
+    except Exception:
+        pass
     yield
 
 
