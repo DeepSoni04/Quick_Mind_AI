@@ -64,8 +64,23 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Health Check
+@app.middleware("http")
+async def normalize_vercel_path(request: Request, call_next):
+    """Normalize Vercel serverless request path so it seamlessly matches FastAPI routes."""
+    path = request.scope.get("path", "")
+    if path.startswith("/api/index.py"):
+        request.scope["path"] = path[len("/api/index.py"):] or "/"
+    elif path.startswith("/api/index"):
+        request.scope["path"] = path[len("/api/index"):] or "/"
+    return await call_next(request)
+
+
+# Health Check endpoints matching all routing permutations
+@app.get("/", response_model=HealthResponse, tags=["Health"])
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
+@app.get("/api", response_model=HealthResponse, tags=["Health"])
+@app.get("/api/health", response_model=HealthResponse, tags=["Health"])
+@app.get("/api/index.py", response_model=HealthResponse, tags=["Health"])
 async def health_check():
     return HealthResponse(status="ok")
 
