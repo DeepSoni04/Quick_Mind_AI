@@ -15,36 +15,42 @@ db_instance = Database()
 
 
 async def connect_to_mongo():
-    """Connect to MongoDB and ensure indexes exist."""
+    """Connect to MongoDB and ensure indexes exist safely for serverless environments."""
     logger.info(f"Connecting to MongoDB at {settings.MONGODB_URI}...")
     try:
-        db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI, tlsCAFile=certifi.where())
+        db_instance.client = AsyncIOMotorClient(
+            settings.MONGODB_URI,
+            tlsCAFile=certifi.where(),
+            serverSelectionTimeoutMS=4000
+        )
     except Exception:
-        db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI)
+        try:
+            db_instance.client = AsyncIOMotorClient(
+                settings.MONGODB_URI,
+                serverSelectionTimeoutMS=4000
+            )
+        except Exception as e:
+            logger.warning(f"Could not initialize MongoDB client: {e}")
+            return
+
     db_instance.db = db_instance.client[settings.MONGODB_DATABASE]
     
-    # Ensure minimum indexes
+    # Schedule index verification without blocking server startup
     try:
-        # Users
-        await db_instance.db.users.create_index("email", unique=True)
-        # Database Connections
-        await db_instance.db.database_connections.create_index("created_by")
-        # Schema Access
-        await db_instance.db.schema_access.create_index([("database_id", 1), ("table_name", 1)])
-        # Query Sessions
-        await db_instance.db.query_sessions.create_index("user_id")
-        # Queries
-        await db_instance.db.queries.create_index("user_id")
-        await db_instance.db.queries.create_index("database_id")
-        await db_instance.db.queries.create_index("session_id")
-        await db_instance.db.queries.create_index("created_at")
-        # Query Logs
-        await db_instance.db.query_logs.create_index("query_id")
-        await db_instance.db.query_logs.create_index("user_id")
-        
-        logger.info("MongoDB connection established and indexes verified.")
+        async def _ensure_indexes():
+            try:
+                await db_instance.db.users.create_index("email", unique=True)
+                await db_instance.db.database_connections.create_index("created_by")
+                await db_instance.db.queries.create_index("user_id")
+                await db_instance.db.queries.create_index("created_at")
+                logger.info("Core MongoDB indexes verified.")
+            except Exception as idx_err:
+                logger.warning(f"Non-critical index verification notice: {idx_err}")
+
+        import asyncio
+        asyncio.create_task(_ensure_indexes())
     except Exception as e:
-        logger.warning(f"Connected to MongoDB but index verification notice: {e}")
+        logger.warning(f"Notice during index creation scheduling: {e}")
 
 
 async def close_mongo_connection():
