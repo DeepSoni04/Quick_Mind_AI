@@ -19,12 +19,17 @@ logger = logging.getLogger("querymind.main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application startup and shutdown lifecycle events."""
+    """Manage application startup and shutdown lifecycle events safely."""
     logger.info(f"Starting {settings.APP_NAME} backend in {settings.ENVIRONMENT} mode...")
-    await connect_to_mongo()
+    try:
+        await connect_to_mongo()
+    except Exception as e:
+        logger.warning(f"MongoDB connection notice during startup: {e}")
     yield
-    logger.info(f"Shutting down {settings.APP_NAME} backend...")
-    await close_mongo_connection()
+    try:
+        await close_mongo_connection()
+    except Exception as e:
+        logger.warning(f"MongoDB close notice during shutdown: {e}")
 
 
 app = FastAPI(
