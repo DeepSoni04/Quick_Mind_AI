@@ -5,7 +5,10 @@ from bson import ObjectId
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import pymysql
-import psycopg2
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
 
 from app.core.security import sanitize_sensitive_text
 from app.schemas.database import ColumnSchema, DatabaseSchemaResponse, TableSchema
