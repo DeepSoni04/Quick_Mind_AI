@@ -139,7 +139,7 @@ export function AuthProvider({ children }) {
       const newEnabled = !!res?.two_factor_enabled;
       setUser((prev) => prev ? { ...prev, twoFactorEnabled: newEnabled, two_factor_enabled: newEnabled } : null);
       return newEnabled;
-    } catch (err) {
+    } catch {
       return false;
     }
   }, []);
@@ -155,7 +155,7 @@ export function AuthProvider({ children }) {
         setUser((prev) => prev ? { ...prev, apiToken: newToken, api_token: newToken } : null);
       }
       return newToken;
-    } catch (err) {
+    } catch {
       return null;
     }
   }, []);
