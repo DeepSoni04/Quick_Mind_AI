@@ -56,5 +56,11 @@ async def close_mongo_connection():
 
 
 def get_database() -> AsyncIOMotorDatabase:
-    """Dependency getter for Motor database instance."""
+    """Dependency getter for Motor database instance with lazy connection for serverless environments."""
+    if db_instance.client is None or db_instance.db is None:
+        try:
+            db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI, tlsCAFile=certifi.where())
+        except Exception:
+            db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI)
+        db_instance.db = db_instance.client[settings.MONGODB_DATABASE]
     return db_instance.db
