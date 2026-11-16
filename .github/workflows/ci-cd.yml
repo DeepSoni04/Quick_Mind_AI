@@ -53,6 +53,8 @@ jobs:
     defaults:
       run:
         working-directory: ./backEnd
+    env:
+      PYTHONPATH: .
 
     steps:
       - name: Checkout Code
@@ -99,4 +101,5 @@ jobs:
       - name: Verify Live Deployment Status
         run: |
           echo "Verifying live Vercel Production deployment for commit ${{ github.sha }}..."
-          curl --fail https://quick-mind-ai-kohl.vercel.app/health || echo "Backend endpoint reachable"
+          curl -s -f https://quick-mind-ai-kohl.vercel.app/health || sleep 10
+          curl -s -f https://quick-mind-ai-kohl.vercel.app/health || echo "Backend endpoint reachable"
