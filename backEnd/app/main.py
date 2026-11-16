@@ -48,6 +48,7 @@ origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,11 +68,19 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.middleware("http")
 async def normalize_vercel_path(request: Request, call_next):
     """Normalize Vercel serverless request path so it seamlessly matches FastAPI routes."""
-    path = request.scope.get("path", "")
-    if path.startswith("/api/index.py"):
-        request.scope["path"] = path[len("/api/index.py"):] or "/"
-    elif path.startswith("/api/index"):
-        request.scope["path"] = path[len("/api/index"):] or "/"
+    # Vercel passes the original requested path in x-matched-path or x-forwarded-uri
+    matched = request.headers.get("x-matched-path") or request.headers.get("x-forwarded-uri")
+    if matched:
+        clean_matched = matched.split("?")[0]
+        request.scope["path"] = clean_matched
+    else:
+        path = request.scope.get("path", "")
+        if path.startswith("/api/index.py/"):
+            request.scope["path"] = path[len("/api/index.py"):]
+        elif path.startswith("/api/index/"):
+            request.scope["path"] = path[len("/api/index"):]
+        elif path in ("/api/index.py", "/api/index"):
+            request.scope["path"] = "/"
     return await call_next(request)
 
 
