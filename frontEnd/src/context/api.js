@@ -39,7 +39,7 @@ async function apiFetch(path, options = {}) {
     headers,
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/register')) {
     setToken(null);
     window.location.href = '/login';
     throw new Error('Session expired. Please log in again.');

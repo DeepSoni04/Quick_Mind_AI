@@ -83,7 +83,7 @@ jobs:
 
       - name: Validate FastAPI ASGI Compilation
         run: |
-          python -c "from app.main import app; print('FastAPI ASGI app compiled successfully')"
+          python validate_app.py
 
       - name: Run Test Suite
         run: |
