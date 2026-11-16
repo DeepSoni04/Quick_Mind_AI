@@ -1,16 +1,21 @@
 # Dependencies
 node_modules/
+**/node_modules/
 .pnp
 .pnp.js
 
 # Build output
 dist/
+**/dist/
 build/
+**/build/
 
 # Environment
 .env
+**/.env
 .env.local
 .env.*.local
+**/.env.*
 
 # IDE
 .vscode/
@@ -28,6 +33,9 @@ npm-debug.log*
 
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 venv/
+**/venv/
 .venv/
+**/.venv/
