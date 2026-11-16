@@ -6,7 +6,8 @@
  * exported function signatures so every existing component keeps working.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const rawBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').trim().replace(/\/+$/, '');
+const API_BASE_URL = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
 
 // ---------------------------------------------------------------------------
 // Token helpers
