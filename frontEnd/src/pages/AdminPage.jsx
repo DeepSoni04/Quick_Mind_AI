@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   getAdminUsers, updateUserRole, resetUserPassword, deleteUser,
   getSecurityLogs, getAdminRoleRequests, approveRoleRequest, rejectRoleRequest,
@@ -32,7 +32,7 @@ export default function AdminPage() {
   const [users, setUsers]         = useState([]);
   const [search, setSearch]       = useState('');
   const [securityLogs, setSecurityLogs] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [_loadingUsers, setLoadingUsers] = useState(true);
 
   // Role request state
   const [roleRequests, setRoleRequests]         = useState([]);
@@ -61,9 +61,30 @@ export default function AdminPage() {
   const [nlRuleSubmitting, setNlRuleSubmitting] = useState(false);
   const [nlRuleMsg, setNlRuleMsg]               = useState(null);
 
+  const loadRoleRequests = useCallback((filter) => {
+    setRoleReqLoading(true);
+    setRoleReqFilter(filter);
+    getAdminRoleRequests(filter)
+      .then((data) => setRoleRequests(Array.isArray(data) ? data : []))
+      .catch(() => setRoleRequests([]))
+      .finally(() => setRoleReqLoading(false));
+  }, []);
+
+  const loadNlRules = useCallback(async (connId) => {
+    if (!connId) return;
+    setNlRuleLoading(true);
+    try {
+      const data = await getNaturalLanguageRules(connId);
+      setNlRules(Array.isArray(data) ? data : []);
+    } catch {
+      setNlRules([]);
+    } finally {
+      setNlRuleLoading(false);
+    }
+  }, []);
+
   // Load users, security logs, and role requests on mount
   useEffect(() => {
-    setLoadingUsers(true);
     getAdminUsers()
       .then((data) => setUsers(Array.isArray(data) ? data : []))
       .catch(() => setUsers([]))
@@ -77,33 +98,20 @@ export default function AdminPage() {
       .then((conns) => {
         const list = Array.isArray(conns) ? conns : [];
         setConnections(list);
-        if (list.length > 0 && !selectedDb) {
-          setSelectedDb(list[0].id);
+        if (list.length > 0) {
+          setSelectedDb((prev) => prev || list[0].id);
         }
       })
       .catch(() => setConnections([]));
 
     loadRoleRequests('pending');
-  }, []);
-
-  const loadNlRules = async (connId) => {
-    if (!connId) return;
-    setNlRuleLoading(true);
-    try {
-      const data = await getNaturalLanguageRules(connId);
-      setNlRules(Array.isArray(data) ? data : []);
-    } catch {
-      setNlRules([]);
-    } finally {
-      setNlRuleLoading(false);
-    }
-  };
+  }, [loadRoleRequests]);
 
   useEffect(() => {
     if (activeTab === 'rules' && selectedDb) {
       loadNlRules(selectedDb);
     }
-  }, [activeTab, selectedDb]);
+  }, [activeTab, selectedDb, loadNlRules]);
 
   const handleAddRule = async (e) => {
     if (e) e.preventDefault();
@@ -141,15 +149,6 @@ export default function AdminPage() {
     } catch (err) {
       setNlRuleMsg({ type: 'error', text: `Failed to revoke rule: ${err.message}` });
     }
-  };
-
-  const loadRoleRequests = (filter) => {
-    setRoleReqLoading(true);
-    setRoleReqFilter(filter);
-    getAdminRoleRequests(filter)
-      .then((data) => setRoleRequests(Array.isArray(data) ? data : []))
-      .catch(() => setRoleRequests([]))
-      .finally(() => setRoleReqLoading(false));
   };
 
   const handleApproveRequest = async (id) => {

@@ -50,7 +50,7 @@ async function apiFetch(path, options = {}) {
     try {
       const body = await res.json();
       errMsg = body?.detail || body?.message || errMsg;
-    } catch (_) {}
+    } catch {}
     throw new Error(errMsg);
   }
 
@@ -374,7 +374,7 @@ export async function closeSession(sessionId) {
 export async function getSettings() {
   try {
     return await apiFetch('/settings');
-  } catch (_) {
+  } catch {
     return { confirmUpdates: true, confirmDeletes: true, rowLimit: 1000, queryTimeout: 20 };
   }
 }
@@ -433,7 +433,7 @@ export async function submitRoleRequest(requestedRole, reason = '') {
 export async function getMyRoleRequests() {
   try {
     return await apiFetch('/admin/role-requests/my');
-  } catch (_) {
+  } catch {
     return [];
   }
 }
