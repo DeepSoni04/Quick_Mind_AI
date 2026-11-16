@@ -44,6 +44,8 @@ app = FastAPI(
 
 # CORS Configuration
 origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
+if "https://quickmind-frontend.vercel.app" not in origins:
+    origins.append("https://quickmind-frontend.vercel.app")
 
 app.add_middleware(
     CORSMiddleware,
@@ -67,20 +69,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.middleware("http")
 async def normalize_vercel_path(request: Request, call_next):
-    """Normalize Vercel serverless request path so it seamlessly matches FastAPI routes."""
-    # Vercel passes the original requested path in x-matched-path or x-forwarded-uri
-    matched = request.headers.get("x-matched-path") or request.headers.get("x-forwarded-uri")
-    if matched:
-        clean_matched = matched.split("?")[0]
-        request.scope["path"] = clean_matched
-    else:
-        path = request.scope.get("path", "")
-        if path.startswith("/api/index.py/"):
-            request.scope["path"] = path[len("/api/index.py"):]
-        elif path.startswith("/api/index/"):
-            request.scope["path"] = path[len("/api/index"):]
-        elif path in ("/api/index.py", "/api/index"):
-            request.scope["path"] = "/"
+    """Normalize Vercel serverless request path if entrypoint prefix is present."""
+    path = request.scope.get("path", "")
+    if path.startswith("/api/index.py/"):
+        request.scope["path"] = path[len("/api/index.py"):]
+    elif path.startswith("/api/index/"):
+        request.scope["path"] = path[len("/api/index"):]
     return await call_next(request)
 
 
@@ -90,6 +84,7 @@ async def normalize_vercel_path(request: Request, call_next):
 @app.get("/api", response_model=HealthResponse, tags=["Health"])
 @app.get("/api/health", response_model=HealthResponse, tags=["Health"])
 @app.get("/api/index.py", response_model=HealthResponse, tags=["Health"])
+@app.get("/api/index", response_model=HealthResponse, tags=["Health"])
 async def health_check():
     return HealthResponse(status="ok")
 

@@ -63,10 +63,38 @@ async def close_mongo_connection():
 
 def get_database() -> AsyncIOMotorDatabase:
     """Dependency getter for Motor database instance with lazy connection for serverless environments."""
+    import asyncio
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        current_loop = None
+
+    recreate = False
     if db_instance.client is None or db_instance.db is None:
+        recreate = True
+    elif current_loop is not None:
         try:
-            db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI, tlsCAFile=certifi.where())
+            client_loop = db_instance.client.get_io_loop()
+            if client_loop.is_closed() or client_loop != current_loop:
+                recreate = True
         except Exception:
-            db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI)
+            recreate = True
+
+    if recreate:
+        try:
+            db_instance.client = AsyncIOMotorClient(
+                settings.MONGODB_URI,
+                tlsCAFile=certifi.where(),
+                serverSelectionTimeoutMS=3000,
+                connectTimeoutMS=3000,
+                socketTimeoutMS=3000
+            )
+        except Exception:
+            db_instance.client = AsyncIOMotorClient(
+                settings.MONGODB_URI,
+                serverSelectionTimeoutMS=3000,
+                connectTimeoutMS=3000,
+                socketTimeoutMS=3000
+            )
         db_instance.db = db_instance.client[settings.MONGODB_DATABASE]
     return db_instance.db
