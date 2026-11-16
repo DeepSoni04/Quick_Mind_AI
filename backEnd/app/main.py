@@ -69,12 +69,19 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.middleware("http")
 async def normalize_vercel_path(request: Request, call_next):
-    """Normalize Vercel serverless request path if entrypoint prefix is present."""
-    path = request.scope.get("path", "")
-    if path.startswith("/api/index.py/"):
-        request.scope["path"] = path[len("/api/index.py"):]
-    elif path.startswith("/api/index/"):
-        request.scope["path"] = path[len("/api/index"):]
+    """Normalize Vercel serverless request path using explicit __path__ capture or path prefixes."""
+    override = request.query_params.get("__path__")
+    if override:
+        clean_path = override.split("?")[0]
+        if not clean_path.startswith("/"):
+            clean_path = "/" + clean_path
+        request.scope["path"] = clean_path
+    else:
+        path = request.scope.get("path", "")
+        if path.startswith("/api/index.py/"):
+            request.scope["path"] = path[len("/api/index.py"):]
+        elif path.startswith("/api/index/"):
+            request.scope["path"] = path[len("/api/index"):]
     return await call_next(request)
 
 
