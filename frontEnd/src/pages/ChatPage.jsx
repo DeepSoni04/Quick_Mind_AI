@@ -517,10 +517,10 @@ function ApprovalScreen({ queryRes, onApproveAndExecute, onCancel, onRevalidate,
             <button
               type="button"
               className="btn-confirm-action btn-confirm-action--update"
-              onClick={() => handleConfirmApproval(0)}
+              onClick={() => handleConfirmApproval(-1)}
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Executing Query…' : 'Approve & Execute Query'}
+              {isSubmitting ? 'Executing…' : statements.length > 1 ? `Approve & Execute All (${statements.length} Statements)` : 'Approve & Execute Query'}
             </button>
           )}
         </div>
@@ -951,7 +951,8 @@ export default function ChatPage({ view = 'workspace' }) {
     setCurrentView('processing');
     try {
       const payload = { nl_query: trimmed, input_type: inputType };
-      if (dbId) payload.database_id = dbId;
+      const targetDbId = dbId || selectedDbId;
+      if (targetDbId) payload.database_id = targetDbId;
       const res = await generateQuery(payload);
       setQueryResult(res);
       setCurrentView('approval');
@@ -960,7 +961,7 @@ export default function ChatPage({ view = 'workspace' }) {
       alert(`Query error: ${err.message}`);
       setCurrentView('workspace');
     }
-  }, []);
+  }, [selectedDbId]);
 
   // Step 2: User edits SQL -> Call POST /api/queries/:id/validate
   const handleRevalidate = useCallback(async (queryId, editedSql) => {
@@ -975,7 +976,7 @@ export default function ChatPage({ view = 'workspace' }) {
   }, []);
 
   // Step 3: User approves statement -> Call POST /api/queries/:id/approve & POST /api/queries/:id/execute
-  const handleApproveAndExecute = useCallback(async (queryId, statementIndex = 0) => {
+  const handleApproveAndExecute = useCallback(async (queryId, statementIndex = -1) => {
     try {
       await approveQuery(queryId, statementIndex);
       const execRes = await executeQuery(queryId);
@@ -1028,7 +1029,7 @@ export default function ChatPage({ view = 'workspace' }) {
       </div>
     </div>
   );
-  if (currentView === 'approval')   return <ApprovalScreen queryRes={queryResult} onApproveAndExecute={handleApproveAndExecute} onCancel={handleCancel} onRevalidate={handleRevalidate} onClarify={handleRunQuery} />;
+  if (currentView === 'approval')   return <ApprovalScreen queryRes={queryResult} onApproveAndExecute={handleApproveAndExecute} onCancel={handleCancel} onRevalidate={handleRevalidate} onClarify={(choiceText) => handleRunQuery(choiceText, 'text', selectedDbId, selectedDbType)} />;
   if (currentView === 'result')     return <ResultScreen query={activeQuery} data={queryResult} onNewQuery={handleNewQuery} onRegenerate={handleRegenerate} queryId={queryResult?.query_id} />;
 
   return (

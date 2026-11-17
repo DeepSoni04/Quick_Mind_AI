@@ -323,11 +323,22 @@ class DatabaseService:
         return self._doc_to_response(conn_id, doc)
 
     async def list_connections(self, user_id: str) -> List[DatabaseConnectionResponse]:
-        """List active database connections for user (no credentials in response)."""
-        cursor = self.db.database_connections.find({"created_by": user_id})
+        """List active database connections for user, including system-wide connections created by admins."""
+        admin_users = self.db.users.find({"role": "admin"})
+        admin_ids = [str(u["_id"]) async for u in admin_users]
+        cursor = self.db.database_connections.find({
+            "$or": [
+                {"created_by": user_id},
+                {"created_by": {"$in": admin_ids}}
+            ]
+        })
         connections = []
+        seen_ids = set()
         async for doc in cursor:
-            connections.append(self._doc_to_response(str(doc["_id"]), doc))
+            cid = str(doc["_id"])
+            if cid not in seen_ids:
+                seen_ids.add(cid)
+                connections.append(self._doc_to_response(cid, doc))
         return connections
 
     async def get_connection(self, conn_id: str, user_id: str) -> DatabaseConnectionResponse:
@@ -389,11 +400,8 @@ class DatabaseService:
             {"_id": obj_id, "created_by": user_id}
         )
         if not doc:
-            # Fallback: check if connection exists and user is admin/analyst or system service
-            user_doc = await self.db.users.find_one({"_id": ObjectId(user_id)}) if ObjectId.is_valid(user_id) else None
-            user_role = user_doc.get("role", "viewer") if user_doc else "admin"
-            if user_role in ["admin", "analyst"] or not user_doc:
-                doc = await self.db.database_connections.find_one({"_id": obj_id})
+            # Fallback: check if connection exists system-wide (e.g. created by admin or shared)
+            doc = await self.db.database_connections.find_one({"_id": obj_id})
         if not doc:
             raise HTTPException(status_code=404, detail="Database connection not found.")
         return doc

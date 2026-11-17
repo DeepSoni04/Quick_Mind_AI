@@ -174,7 +174,7 @@ export const validateQuery = revalidateQuery;
 /**
  * POST /queries/:id/approve — approve a specific statement
  */
-export async function approveQuery(queryId, statementIndex = 0) {
+export async function approveQuery(queryId, statementIndex = -1) {
   return apiFetch(`/queries/${queryId}/approve`, {
     method: 'POST',
     body: JSON.stringify({ statement_index: statementIndex }),

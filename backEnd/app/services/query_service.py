@@ -423,17 +423,26 @@ class QueryService:
             raise HTTPException(status_code=404, detail="Query not found.")
 
         statements = query.get("statements", [])
-        if statement_index < 0 or statement_index >= len(statements):
-            raise HTTPException(status_code=400, detail="Invalid statement index.")
+        if statement_index == -1:
+            # Approve all non-blocked statements in the query
+            approved_any = False
+            for stmt in statements:
+                if stmt.get("validation_status") not in ["blocked", "invalid"]:
+                    stmt["approval_status"] = "approved"
+                    approved_any = True
+            if not approved_any:
+                raise HTTPException(status_code=400, detail="Cannot approve query: all statements are blocked or invalid.")
+        else:
+            if statement_index < 0 or statement_index >= len(statements):
+                raise HTTPException(status_code=400, detail="Invalid statement index.")
 
-        stmt = statements[statement_index]
-        if stmt.get("validation_status") in ["blocked", "invalid"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot approve {stmt.get('validation_status')} statement: {stmt.get('validation_message')}"
-            )
-
-        stmt["approval_status"] = "approved"
+            stmt = statements[statement_index]
+            if stmt.get("validation_status") in ["blocked", "invalid"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot approve {stmt.get('validation_status')} statement: {stmt.get('validation_message')}"
+                )
+            stmt["approval_status"] = "approved"
 
         # Check if all statements are approved
         all_approved = all(s.get("approval_status") == "approved" for s in statements)
