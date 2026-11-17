@@ -64,6 +64,13 @@ Rules:
      ]
    - If a simple "find" is requested or sufficient, you can also use "find" with the year-resilient $expr or {current_year} datetime filter.
 
+7. MULTI-STATEMENT / COMPOUND QUERIES:
+   - When the user asks for multiple operations in a single prompt (e.g. 'insert and update at same time', 'insert and find'):
+   - Generate each operation as an item in the 'sql_statements' list in sequential execution order.
+
+8. SMART AMBIGUITY CLARIFICATION:
+   - If the user query is vague (e.g. 'top performers', 'fetch top faculty members', 'show orders'), set "needs_clarification": true with appropriate question and choices.
+
 Return strictly valid JSON with this structure:
 {{
   "status": "success",
@@ -119,15 +126,24 @@ Rules:
 1. Understand queries written in English or Hinglish.
 2. Generate valid SQL syntax strictly using the target dialect ({db_type.upper()}).
 3. When matching dates without an explicit year (e.g. "1 November"), use the current reference year ({current_year}) instead of outdated years.
-4. Do NOT generate MySQL-specific syntax for PostgreSQL or vice-versa.
+4. Do NOT generate MySQL-specific syntax for PostgreSQL or vice-versa. Use ONLY real columns from the schema above (e.g. for faculty table use name, email, department_id, designation, salary; never invent first_name/last_name if not in schema).
 5. SMART AMBIGUITY CLARIFICATION:
-   - If the user query is vague, broad, or could lead to multiple distinct interpretations (e.g., 'show best records', 'top performers', 'recent orders' without timeframe, or multiple matching tables/metrics), do NOT guess blindly.
+   - If the user query is vague, broad, or could lead to multiple distinct interpretations (e.g., 'show best records', 'top performers', 'fetch top faculty members', 'top faculty', 'recent orders' without timeframe, or multiple matching tables/metrics), do NOT guess blindly.
+   - For example, if user asks 'fetch top faculty members' or 'top faculty', ask 'How would you like to rank faculty members?' with choices ["Rank by Highest Paid (Salary)", "Rank by Designation", "Show All Faculty Details"].
    - Set "needs_clarification": true.
    - Set "clarification_question": A polite, concise question asking how they want to filter or categorize the data.
-   - Set "clarification_choices": An array of 2 to 4 distinct, actionable options (e.g. ["Rank by CGPA", "Rank by Attendance %"] or ["Confirmed Bookings", "All Bookings"]).
+   - Set "clarification_choices": An array of 2 to 4 distinct, actionable options.
    - Set "sql_statements": [].
-   - If the query is clear and unambiguous, set "needs_clarification": false with null question and choices, and generate the SQL statements.
-6. Return strictly valid JSON containing:
+   - If the query is clear and unambiguous, or is an answer to a clarification (e.g., 'Rank by Highest Paid (Salary)', 'highest paid status', 'by salary'), set "needs_clarification": false with null question and choices, and generate the SQL statements.
+6. MULTI-STATEMENT / COMPOUND QUERIES:
+   - When the user asks for multiple operations in a single prompt (e.g. 'insert and update at same time', 'insert faculty and select all faculty', 'update X and delete Y'):
+   - Generate EACH operation as an independent item in the 'sql_statements' array in proper sequential execution order!
+   - Example:
+     "sql_statements": [
+       {{ "sql": "INSERT INTO faculty (name, email, department_id, designation, salary) VALUES ('Dr. Amit Sharma', 'amit@univ.edu', 1, 'Professor', 95000);", "operation": "INSERT" }},
+       {{ "sql": "UPDATE faculty SET designation = 'Senior Professor' WHERE name = 'Dr. Amit Sharma';", "operation": "UPDATE" }}
+     ]
+7. Return strictly valid JSON containing:
 {{
   "status": "success",
   "intent": "Brief description of user intent",
@@ -323,7 +339,7 @@ Rules to follow:
    action = "restrict_table", table_name = "payments", column_name = null, allowed = false
 4. If the rule restricts specific operations (e.g. 'disallow DELETE on bookings'):
    action = "restrict_operation", table_name = "bookings", column_name = null, restricted_operations = ["DELETE"]
-5. Determine target_role: 'viewer' (default if viewer mentioned), 'analyst', or 'all'.
+5. Determine target_role: 'all' by default unless a specific role ('viewer' or 'analyst') is explicitly requested in the rule text.
 
 Return strictly valid JSON with this format:
 {{
@@ -504,8 +520,9 @@ Return strictly valid JSON:
 class OpenAIProvider(LLMProvider):
     """OpenAI GPT-4 provider for LLM fallback chain."""
 
-    def __init__(self, api_key: str = ""):
+    def __init__(self, api_key: str = "", model: str = ""):
         self.api_key = api_key or (settings.OPENAI_API_KEY or "")
+        self.model = model or getattr(settings, "OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini"
 
     def is_available(self) -> bool:
         return bool(self.api_key and self.api_key.strip())
@@ -530,7 +547,7 @@ class OpenAIProvider(LLMProvider):
             user_msg = f"Session History:\n{json.dumps(session_context)}\n\n{user_msg}"
 
         payload = {
-            "model": "gpt-4o-mini",
+            "model": self.model,
             "messages": [
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": user_msg},
@@ -578,15 +595,15 @@ Write a 2-3 sentence executive summary highlighting key findings, numbers, top i
             }
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(
-                    f"{self.OPENROUTER_BASE_URL}/chat/completions",
+                    "https://api.openai.com/v1/chat/completions",
                     json=payload,
                     headers={"Authorization": f"Bearer {self.api_key}"}
                 )
                 if resp.status_code == 200:
                     return resp.json()["choices"][0]["message"]["content"].strip()
-                raise RuntimeError(f"OpenRouter returned HTTP {resp.status_code}")
+                raise RuntimeError(f"OpenAI returned HTTP {resp.status_code}")
         except Exception as e:
-            logger.warning(f"OpenRouter summary generation failed: {e}. Falling back...")
+            logger.warning(f"OpenAI summary generation failed: {e}. Falling back...")
             raise
 
     async def parse_security_rule(
@@ -594,7 +611,7 @@ Write a 2-3 sentence executive summary highlighting key findings, numbers, top i
         rule_text: str,
         schema_text: str
     ) -> Dict[str, Any]:
-        """Translates natural language security policy into structured permission rule via OpenRouter."""
+        """Translates natural language security policy into structured permission rule via OpenAI."""
         prompt = f"""You are QueryMind AI Security & Governance Parser.
 Available Database Schema:
 {schema_text}
@@ -622,7 +639,7 @@ Return strictly valid JSON:
         }
         async with httpx.AsyncClient(timeout=12.0) as client:
             resp = await client.post(
-                f"{self.OPENROUTER_BASE_URL}/chat/completions",
+                "https://api.openai.com/v1/chat/completions",
                 json=payload,
                 headers={"Authorization": f"Bearer {self.api_key}"}
             )
@@ -630,14 +647,15 @@ Return strictly valid JSON:
                 text_out = resp.json()["choices"][0]["message"]["content"].strip()
                 json_match = re.search(r"\{.*\}", text_out, re.DOTALL)
                 return json.loads(json_match.group(0)) if json_match else json.loads(text_out)
-        raise RuntimeError(f"OpenRouter rule parsing failed HTTP {resp.status_code}")
+        raise RuntimeError(f"OpenAI rule parsing failed HTTP {resp.status_code}")
 
 
 class AnthropicProvider(LLMProvider):
     """Anthropic Claude provider for LLM fallback chain."""
 
-    def __init__(self, api_key: str = ""):
+    def __init__(self, api_key: str = "", model: str = ""):
         self.api_key = api_key or (settings.ANTHROPIC_API_KEY or "")
+        self.model = model or getattr(settings, "ANTHROPIC_MODEL", "claude-3-5-haiku-20241022") or "claude-3-5-haiku-20241022"
 
     def is_available(self) -> bool:
         return bool(self.api_key and self.api_key.strip())
@@ -662,7 +680,7 @@ class AnthropicProvider(LLMProvider):
             user_msg = f"Session History:\n{json.dumps(session_context)}\n\n{user_msg}"
 
         payload = {
-            "model": "claude-3-5-haiku-20241022",
+            "model": self.model,
             "max_tokens": 1024,
             "system": system_msg,
             "messages": [{"role": "user", "content": user_msg}],
@@ -709,20 +727,23 @@ Data Sample:
 Write a 2-3 sentence executive summary highlighting key findings, numbers, top items, and notable trends from the data. Be specific and insightful."""
             payload = {
                 "model": self.model,
+                "max_tokens": 300,
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.2,
             }
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(
-                    f"{self.OPENROUTER_BASE_URL}/chat/completions",
+                    "https://api.anthropic.com/v1/messages",
                     json=payload,
-                    headers={"Authorization": f"Bearer {self.api_key}"}
+                    headers={
+                        "x-api-key": self.api_key,
+                        "anthropic-version": "2023-06-01",
+                    }
                 )
                 if resp.status_code == 200:
-                    return resp.json()["choices"][0]["message"]["content"].strip()
-                raise RuntimeError(f"OpenRouter returned HTTP {resp.status_code}")
+                    return resp.json()["content"][0]["text"].strip()
+                raise RuntimeError(f"Anthropic returned HTTP {resp.status_code}")
         except Exception as e:
-            logger.warning(f"OpenRouter summary generation failed: {e}. Falling back...")
+            logger.warning(f"Anthropic summary generation failed: {e}. Falling back...")
             raise
 
     async def parse_security_rule(
@@ -730,7 +751,7 @@ Write a 2-3 sentence executive summary highlighting key findings, numbers, top i
         rule_text: str,
         schema_text: str
     ) -> Dict[str, Any]:
-        """Translates natural language security policy into structured permission rule via OpenRouter."""
+        """Translates natural language security policy into structured permission rule via Anthropic."""
         prompt = f"""You are QueryMind AI Security & Governance Parser.
 Available Database Schema:
 {schema_text}
@@ -752,10 +773,23 @@ Return strictly valid JSON:
 }}"""
         payload = {
             "model": self.model,
+            "max_tokens": 400,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"}
         }
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                json=payload,
+                headers={
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                }
+            )
+            if resp.status_code == 200:
+                text_out = resp.json()["content"][0]["text"].strip()
+                json_match = re.search(r"\{.*\}", text_out, re.DOTALL)
+                return json.loads(json_match.group(0)) if json_match else json.loads(text_out)
+        raise RuntimeError(f"Anthropic rule parsing failed HTTP {resp.status_code}")
         async with httpx.AsyncClient(timeout=12.0) as client:
             resp = await client.post(
                 f"{self.OPENROUTER_BASE_URL}/chat/completions",
@@ -785,7 +819,189 @@ class MockLLMProvider(LLMProvider):
         clean = nl_query.strip()
         lower = clean.lower()
 
-        # 1. Clarified Ambiguity Resolutions (prevent infinite ambiguity loop)
+        # 1. Compound / Multi-statement query handling (runs first to prevent single-intent interception)
+        has_insert_intent = any(k in lower for k in ("insert", "add new", "add into", "add faculty", "add student"))
+        has_update_intent = any(k in lower for k in ("update", "modify", "change department", "change salary", "change status", "set designation"))
+        has_select_intent = any(k in lower for k in ("select", "fetch", "show all", "list all", "get all", "view all", "retrieve"))
+        has_delete_intent = any(k in lower for k in ("delete", "remove", "purge", "erase"))
+
+        quote = "`" if db_type == "mysql" else '"'
+        target_table = "students"
+        tables = re.findall(r"Table:\s*([a-zA-Z0-9_]+)", schema_text)
+        if "faculty" in lower or "faculties" in lower:
+            target_table = "faculty"
+        elif tables:
+            for t in tables:
+                if t.lower() in lower:
+                    target_table = t
+                    break
+
+        active_intents = []
+        if has_insert_intent: active_intents.append("INSERT")
+        if has_update_intent: active_intents.append("UPDATE")
+        if has_select_intent: active_intents.append("SELECT")
+        if has_delete_intent: active_intents.append("DELETE")
+
+        if len(active_intents) >= 2 or ("same time" in lower and len(active_intents) >= 1) or "multiple queries" in lower or "and delete inactive" in lower:
+            if db_type.lower() in ("mongodb", "mongo"):
+                return self._generate_mongodb_query(nl_query, lower, schema_text)
+
+            if "and delete inactive" in lower:
+                return {
+                    "status": "success",
+                    "intent": "Update department and delete inactive students",
+                    "sql_statements": [
+                        {"sql": f"UPDATE {quote}students{quote} SET {quote}department{quote} = 'CS' WHERE {quote}id{quote} = 1;", "operation": "UPDATE"},
+                        {"sql": f"DELETE FROM {quote}students{quote} WHERE {quote}status{quote} = 'inactive';", "operation": "DELETE"}
+                    ],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+            elif target_table == "faculty":
+                if has_insert_intent and has_update_intent:
+                    statements_list = [
+                        {"sql": f"INSERT INTO {quote}faculty{quote} (name, email, department_id, designation, salary) VALUES ('Dr. Amit Sharma', 'amit.sharma@univ.edu', 1, 'Associate Professor', 85000);", "operation": "INSERT"},
+                        {"sql": f"UPDATE {quote}faculty{quote} SET designation = 'Senior Professor', salary = 95000 WHERE name = 'Dr. Amit Sharma';", "operation": "UPDATE"}
+                    ]
+                    intent_desc = "Insert new faculty member and update designation"
+                elif has_insert_intent and has_select_intent:
+                    statements_list = [
+                        {"sql": f"INSERT INTO {quote}faculty{quote} (name, email, department_id, designation, salary) VALUES ('Dr. Amit Sharma', 'amit.sharma@univ.edu', 1, 'Associate Professor', 85000);", "operation": "INSERT"},
+                        {"sql": f"SELECT faculty_id, name, email, department_id, designation, salary FROM {quote}faculty{quote} ORDER BY faculty_id DESC LIMIT 10;", "operation": "SELECT"}
+                    ]
+                    intent_desc = "Insert new faculty member and retrieve faculty list"
+                elif has_update_intent and has_select_intent:
+                    statements_list = [
+                        {"sql": f"UPDATE {quote}faculty{quote} SET designation = 'Senior Professor' WHERE name = 'Dr. Amit Sharma';", "operation": "UPDATE"},
+                        {"sql": f"SELECT faculty_id, name, email, department_id, designation, salary FROM {quote}faculty{quote} ORDER BY faculty_id DESC LIMIT 10;", "operation": "SELECT"}
+                    ]
+                    intent_desc = "Update faculty designation and retrieve faculty list"
+                elif has_update_intent and has_delete_intent:
+                    statements_list = [
+                        {"sql": f"UPDATE {quote}faculty{quote} SET designation = 'Visiting Faculty' WHERE faculty_id = 1;", "operation": "UPDATE"},
+                        {"sql": f"DELETE FROM {quote}faculty{quote} WHERE name = 'Dr. Temp';", "operation": "DELETE"}
+                    ]
+                    intent_desc = "Update faculty and delete temporary faculty"
+                else:
+                    statements_list = [
+                        {"sql": f"INSERT INTO {quote}faculty{quote} (name, email, department_id, designation, salary) VALUES ('Dr. Amit Sharma', 'amit.sharma@univ.edu', 1, 'Associate Professor', 85000);", "operation": "INSERT"},
+                        {"sql": f"UPDATE {quote}faculty{quote} SET designation = 'Senior Professor', salary = 95000 WHERE name = 'Dr. Amit Sharma';", "operation": "UPDATE"}
+                    ]
+                    intent_desc = "Insert and update faculty members"
+            else:
+                if has_insert_intent and has_update_intent:
+                    statements_list = [
+                        {"sql": f"INSERT INTO {quote}students{quote} (first_name, last_name, email, cgpa) VALUES ('Neha', 'Sharma', 'neha.s@univ.edu', 9.2);", "operation": "INSERT"},
+                        {"sql": f"UPDATE {quote}students{quote} SET cgpa = 9.5 WHERE first_name = 'Neha';", "operation": "UPDATE"}
+                    ]
+                    intent_desc = "Insert new student and update CGPA"
+                elif has_insert_intent and has_select_intent:
+                    statements_list = [
+                        {"sql": f"INSERT INTO {quote}students{quote} (first_name, last_name, email, cgpa) VALUES ('Neha', 'Sharma', 'neha.s@univ.edu', 9.2);", "operation": "INSERT"},
+                        {"sql": f"SELECT * FROM {quote}students{quote} ORDER BY student_id DESC LIMIT 10;", "operation": "SELECT"}
+                    ]
+                    intent_desc = "Insert new student and retrieve students list"
+                elif has_update_intent and has_select_intent:
+                    statements_list = [
+                        {"sql": f"UPDATE {quote}students{quote} SET department = 'CS' WHERE id = 1;", "operation": "UPDATE"},
+                        {"sql": f"SELECT * FROM {quote}students{quote} ORDER BY student_id DESC LIMIT 10;", "operation": "SELECT"}
+                    ]
+                    intent_desc = "Update student department and retrieve students list"
+                else:
+                    statements_list = [
+                        {"sql": f"INSERT INTO {quote}students{quote} (first_name, last_name, email, cgpa) VALUES ('Neha', 'Sharma', 'neha.s@univ.edu', 9.2);", "operation": "INSERT"},
+                        {"sql": f"UPDATE {quote}students{quote} SET cgpa = 9.5 WHERE first_name = 'Neha';", "operation": "UPDATE"}
+                    ]
+                    intent_desc = "Insert and update student records"
+
+            return {
+                "status": "success",
+                "intent": intent_desc,
+                "sql_statements": statements_list,
+                "needs_clarification": False,
+                "clarification_question": None,
+                "clarification_choices": None
+            }
+
+        # 2. Clarified Ambiguity Resolutions (prevent infinite ambiguity loop)
+        # Faculty clarified ambiguity resolutions
+        is_faculty_context = ("faculty" in lower or "faculties" in lower) or (
+            "faculty" in schema_text.lower() and any(k in lower for k in (
+                "highest paid", "highest paid status", "rank by highest paid",
+                "rank by designation", "show all faculty", "faculty details"
+            ))
+        ) or any(k in lower for k in ("highest paid", "rank by highest paid", "highest paid status"))
+
+        if is_faculty_context and any(k in lower for k in ("highest paid", "salary", "paid status", "highest paid status", "rank by highest paid")):
+            if db_type.lower() in ("mongodb", "mongo"):
+                mql = {"collection": "faculty", "operation": "find", "filter": {}, "sort": {"salary": -1}}
+                return {
+                    "status": "success",
+                    "intent": "Top faculty members ranked by salary",
+                    "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "SELECT", "mql": mql}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+            else:
+                quote = "`" if db_type == "mysql" else '"'
+                sql = f"SELECT faculty_id, name, email, department_id, designation, salary FROM {quote}faculty{quote} ORDER BY salary DESC LIMIT 10;"
+                return {
+                    "status": "success",
+                    "intent": "Top faculty members ranked by salary",
+                    "sql_statements": [{"sql": sql, "operation": "SELECT"}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+
+        if is_faculty_context and "designation" in lower:
+            if db_type.lower() in ("mongodb", "mongo"):
+                mql = {"collection": "faculty", "operation": "find", "filter": {}, "sort": {"designation": 1}}
+                return {
+                    "status": "success",
+                    "intent": "Faculty members ranked by designation",
+                    "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "SELECT", "mql": mql}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+            else:
+                quote = "`" if db_type == "mysql" else '"'
+                sql = f"SELECT faculty_id, name, email, department_id, designation FROM {quote}faculty{quote} ORDER BY designation ASC LIMIT 10;"
+                return {
+                    "status": "success",
+                    "intent": "Faculty members ranked by designation",
+                    "sql_statements": [{"sql": sql, "operation": "SELECT"}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+
+        if is_faculty_context and any(k in lower for k in ("all faculty", "show all", "all details", "show all faculty details")):
+            if db_type.lower() in ("mongodb", "mongo"):
+                mql = {"collection": "faculty", "operation": "find", "filter": {}}
+                return {
+                    "status": "success",
+                    "intent": "Show all faculty members",
+                    "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "SELECT", "mql": mql}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+            else:
+                quote = "`" if db_type == "mysql" else '"'
+                sql = f"SELECT faculty_id, name, email, department_id, designation, salary FROM {quote}faculty{quote} LIMIT 10;"
+                return {
+                    "status": "success",
+                    "intent": "Show all faculty members",
+                    "sql_statements": [{"sql": sql, "operation": "SELECT"}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+
         if ("top performer" in lower or "best student" in lower) and ("attendance" in lower or "course" in lower):
             if db_type.lower() in ("mongodb", "mongo"):
                 mql = {"collection": "students", "operation": "find", "filter": {}, "sort": {"attendance_pct": -1}}
@@ -854,6 +1070,24 @@ class MockLLMProvider(LLMProvider):
             }
 
         # 2. Trigger Ambiguity if NOT yet clarified
+        # Ambiguity Trigger for Faculty
+        if lower.strip() in (
+            "fetch top faculty members", "fetch top faculty", "top faculty members",
+            "top faculty", "best faculty", "show top faculty", "show top faculty members",
+            "get top faculty", "list top faculty"
+        ) or (
+            ("top faculty" in lower or "best faculty" in lower) and
+            not any(k in lower for k in ("salary", "paid", "designation", "detail", "all faculty", "("))
+        ):
+            return {
+                "status": "success",
+                "intent": "Ambiguity detected on faculty ranking criteria",
+                "sql_statements": [],
+                "needs_clarification": True,
+                "clarification_question": "How would you like to rank faculty members?",
+                "clarification_choices": ["Rank by Highest Paid (Salary)", "Rank by Designation", "Show All Faculty Details"]
+            }
+
         if lower.strip() in ("show top performers", "top performers", "best students", "top students") or (
             ("top performer" in lower or "best student" in lower) and "(" not in lower
         ):
@@ -900,27 +1134,6 @@ class MockLLMProvider(LLMProvider):
         if db_type.lower() in ("mongodb", "mongo"):
             return self._generate_mongodb_query(nl_query, lower, schema_text)
 
-        # Multi-statement test case
-        if "and delete inactive" in lower:
-            quote = "`" if db_type == "mysql" else '"'
-            return {
-                "status": "success",
-                "intent": "Update department and delete inactive students",
-                "sql_statements": [
-                    {
-                        "sql": f"UPDATE {quote}students{quote} SET {quote}department{quote} = 'CS' WHERE {quote}id{quote} = 1;",
-                        "operation": "UPDATE"
-                    },
-                    {
-                        "sql": f"DELETE FROM {quote}students{quote} WHERE {quote}status{quote} = 'inactive';",
-                        "operation": "DELETE"
-                    }
-                ],
-                "needs_clarification": False,
-                "clarification_question": None,
-                "clarification_choices": None
-            }
-
         op = "SELECT"
         if re.search(r"\b(delete|remove|erase|purge)\b", lower):
             op = "DELETE"
@@ -929,21 +1142,13 @@ class MockLLMProvider(LLMProvider):
         elif re.search(r"\b(insert|add)\b", lower):
             op = "INSERT"
 
-        # Determine target table from schema
-        tables = re.findall(r"Table:\s*([a-zA-Z0-9_]+)", schema_text)
-        target_table = "students"
-        if tables:
-            for t in tables:
-                if t.lower() in lower:
-                    target_table = t
-                    break
-            else:
-                target_table = tables[0]
-
-        quote = "`" if db_type == "mysql" else '"'
-
         if op == "SELECT":
-            if "salary" in lower or "salaries" in lower:
+            if target_table == "faculty":
+                if "salary" in lower or "salaries" in lower:
+                    sql = f"SELECT faculty_id, name, designation, salary FROM {quote}faculty{quote}"
+                else:
+                    sql = f"SELECT faculty_id, name, email, department_id, designation, salary FROM {quote}faculty{quote}"
+            elif "salary" in lower or "salaries" in lower:
                 sql = f"SELECT first_name, last_name, salary FROM {quote}{target_table}{quote}"
             else:
                 sql = f"SELECT * FROM {quote}{target_table}{quote}"
@@ -954,11 +1159,16 @@ class MockLLMProvider(LLMProvider):
                 elif "inactive" in lower:
                     sql += f" WHERE {quote}status{quote} = 'Inactive'"
         elif op == "UPDATE":
-            sql = f"UPDATE {quote}{target_table}{quote} SET {quote}department{quote} = 'Computer Science' WHERE {quote}name{quote} = 'Rahul Mehta'"
+            if target_table == "faculty":
+                sql = f"UPDATE {quote}faculty{quote} SET {quote}designation{quote} = 'Professor' WHERE {quote}name{quote} = 'Dr. Amit Sharma'"
+            else:
+                sql = f"UPDATE {quote}{target_table}{quote} SET {quote}department{quote} = 'Computer Science' WHERE {quote}name{quote} = 'Rahul Mehta'"
         elif op == "DELETE":
             sql = f"DELETE FROM {quote}{target_table}{quote} WHERE {quote}status{quote} = 'inactive'"
         elif op == "INSERT":
-            if "customer" in lower and ("aarav" in lower or "phone" in lower or "email" in lower):
+            if target_table == "faculty":
+                sql = f"INSERT INTO {quote}faculty{quote} (name, email, department_id, designation, salary) VALUES ('Dr. Amit Sharma', 'amit.sharma@univ.edu', 1, 'Associate Professor', 85000);"
+            elif "customer" in lower and ("aarav" in lower or "phone" in lower or "email" in lower):
                 sql = "INSERT INTO `Customer` (`cid`, `fname`, `lname`, `uname`, `password`, `phone`, `email`) VALUES (UUID(), 'Aarav', 'Patel', 'aarav01', 'Pass@123', '9876543210', 'aarav.patel@example.com');"
             elif "student" in lower and ("neha" in lower or "cgpa" in lower or "email" in lower):
                 sql = "INSERT INTO students (first_name, last_name, email, cgpa, dept_id, enrollment_year) VALUES ('Neha', 'Sharma', 'neha.s@univ.edu', 9.2, 1, 2024);"
@@ -987,6 +1197,40 @@ class MockLLMProvider(LLMProvider):
                     break
             else:
                 target_coll = collections[0]
+
+        # Compound / Multi-statement MongoDB operations
+        has_insert = any(k in lower for k in ("insert", "add"))
+        has_update = any(k in lower for k in ("update", "modify", "change", "set"))
+        has_select = any(k in lower for k in ("select", "find", "fetch", "show", "list", "get"))
+        if (has_insert and has_update) or (has_insert and has_select) or "same time" in lower or "multiple queries" in lower:
+            if has_insert and has_select:
+                mql1 = {"collection": target_coll, "operation": "insert_one", "document": {"name": "Dr. Amit Sharma", "department": "Computer Science", "salary": 85000}}
+                mql2 = {"collection": target_coll, "operation": "find", "filter": {}}
+                return {
+                    "status": "success",
+                    "intent": f"Insert and find documents in {target_coll} collection",
+                    "sql_statements": [
+                        {"sql": json.dumps(mql1, indent=2), "operation": "INSERT", "mql": mql1},
+                        {"sql": json.dumps(mql2, indent=2), "operation": "SELECT", "mql": mql2}
+                    ],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+            else:
+                mql1 = {"collection": target_coll, "operation": "insert_one", "document": {"name": "Dr. Amit Sharma", "department": "Computer Science", "salary": 85000}}
+                mql2 = {"collection": target_coll, "operation": "update_one", "filter": {"name": "Dr. Amit Sharma"}, "update": {"$set": {"designation": "Professor"}}}
+                return {
+                    "status": "success",
+                    "intent": f"Insert and update document in {target_coll} collection",
+                    "sql_statements": [
+                        {"sql": json.dumps(mql1, indent=2), "operation": "INSERT", "mql": mql1},
+                        {"sql": json.dumps(mql2, indent=2), "operation": "UPDATE", "mql": mql2}
+                    ],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
 
         # 1. DELETE
         if re.search(r"\b(delete|remove|erase|purge)\b", lower):
@@ -1265,7 +1509,8 @@ class MockLLMProvider(LLMProvider):
 
         tables = re.findall(r"(?:Table|Collection):\s*([a-zA-Z0-9_]+)", schema_str, re.IGNORECASE)
         for tbl in tables:
-            if tbl.lower() in lower:
+            tbl_low = tbl.lower()
+            if tbl_low in lower or tbl_low.rstrip('s') in lower or ("faculty" in tbl_low and "facult" in lower):
                 target_table = tbl
                 break
 

@@ -192,6 +192,29 @@ class ExecutionService:
                 elif affected_count > 0:
                     total_rows += affected_count
 
+            if rows:
+                total_rows = len(rows)
+
+            # Defense-in-depth: Mask restricted columns in returned rows
+            if columns and rows and permissions_dict:
+                tables_cfg = permissions_dict.get("tables", {})
+                masked_cols = set()
+                for col_idx, col_name in enumerate(columns):
+                    c_key = col_name.lower()
+                    for t_name, t_cfg in tables_cfg.items():
+                        cols_cfg = t_cfg.get("columns", {})
+                        if c_key in cols_cfg:
+                            c_info = cols_cfg[c_key]
+                            t_role = c_info.get("target_role", "all").lower()
+                            if not c_info.get("allowed", True) and (t_role == "all" or t_role == current_role.lower()):
+                                masked_cols.add(col_idx)
+                                break
+                if masked_cols:
+                    for r in rows:
+                        for c_idx in masked_cols:
+                            if c_idx < len(r):
+                                r[c_idx] = "[RESTRICTED]"
+
         except Exception as e:
             raw_err = str(e)
             safe_err = sanitize_sensitive_text(
@@ -246,42 +269,60 @@ class ExecutionService:
 
         # Generate summary
         summary = None
-        first_sql = executed_sqls[0].strip() if executed_sqls else ""
-        first_word = first_sql.split()[0].upper() if first_sql else "SELECT"
-        if first_word in ["INSERT", "UPDATE", "DELETE"]:
-            table_match = re.search(r'(?:INTO|FROM|UPDATE)\s+[`"]?([a-zA-Z0-9_]+)[`"]?', first_sql, re.IGNORECASE)
-            tbl = table_match.group(1) if table_match else "table"
-            affected = total_rows if total_rows > 0 else (rows[0][0] if rows and len(rows[0]) > 0 else 1)
-            if first_word == "INSERT":
-                summary = f"Operation executed successfully. Inserted {affected} new record into {tbl}."
-            elif first_word == "UPDATE":
-                summary = f"Operation executed successfully. Updated {affected} record(s) in {tbl}."
-            elif first_word == "DELETE":
-                summary = f"Operation executed successfully. Deleted {affected} record(s) from {tbl}."
-        elif db_type in ("mongodb", "mongo") and any(k in first_sql.lower() for k in ("insert_one", "insert_many", "update_one", "update_many", "delete_one", "delete_many")):
-            if "insert" in first_sql.lower():
-                summary = f"Operation executed successfully. Inserted {total_rows} document(s) into collection."
-            elif "update" in first_sql.lower():
-                summary = f"Operation executed successfully. Updated {total_rows} document(s) in collection."
-            elif "delete" in first_sql.lower():
-                summary = f"Operation executed successfully. Deleted {total_rows} document(s) from collection."
+        if len(executed_sqls) > 1:
+            stmt_summaries = []
+            for s_sql in executed_sqls:
+                w = s_sql.strip().split()[0].upper() if s_sql.strip() else "QUERY"
+                tbl_m = re.search(r'(?:INTO|FROM|UPDATE)\s+[`"]?([a-zA-Z0-9_]+)[`"]?', s_sql, re.IGNORECASE)
+                tbl_name = tbl_m.group(1) if tbl_m else "table"
+                if w == "INSERT":
+                    stmt_summaries.append(f"Inserted into {tbl_name}")
+                elif w == "UPDATE":
+                    stmt_summaries.append(f"Updated {tbl_name}")
+                elif w == "DELETE":
+                    stmt_summaries.append(f"Deleted from {tbl_name}")
+                elif w == "SELECT":
+                    stmt_summaries.append(f"Retrieved records from {tbl_name}")
+                else:
+                    stmt_summaries.append(f"Executed {w} on {tbl_name}")
+            summary = f"Multi-query executed successfully ({len(executed_sqls)} operations: {'; '.join(stmt_summaries)})."
         else:
-            try:
-                llm = get_llm_provider()
-                sample_data = []
-                if columns and rows:
-                    for r in rows[:10]:
-                        sample_data.append({col: val for col, val in zip(columns, r)})
+            first_sql = executed_sqls[0].strip() if executed_sqls else ""
+            first_word = first_sql.split()[0].upper() if first_sql else "SELECT"
+            if first_word in ["INSERT", "UPDATE", "DELETE"]:
+                table_match = re.search(r'(?:INTO|FROM|UPDATE)\s+[`"]?([a-zA-Z0-9_]+)[`"]?', first_sql, re.IGNORECASE)
+                tbl = table_match.group(1) if table_match else "table"
+                affected = total_rows if total_rows > 0 else (rows[0][0] if rows and len(rows[0]) > 0 else 1)
+                if first_word == "INSERT":
+                    summary = f"Operation executed successfully. Inserted {affected} new record into {tbl}."
+                elif first_word == "UPDATE":
+                    summary = f"Operation executed successfully. Updated {affected} record(s) in {tbl}."
+                elif first_word == "DELETE":
+                    summary = f"Operation executed successfully. Deleted {affected} record(s) from {tbl}."
+            elif db_type in ("mongodb", "mongo") and any(k in first_sql.lower() for k in ("insert_one", "insert_many", "update_one", "update_many", "delete_one", "delete_many")):
+                if "insert" in first_sql.lower():
+                    summary = f"Operation executed successfully. Inserted {total_rows} document(s) into collection."
+                elif "update" in first_sql.lower():
+                    summary = f"Operation executed successfully. Updated {total_rows} document(s) in collection."
+                elif "delete" in first_sql.lower():
+                    summary = f"Operation executed successfully. Deleted {total_rows} document(s) from collection."
+            else:
+                try:
+                    llm = get_llm_provider()
+                    sample_data = []
+                    if columns and rows:
+                        for r in rows[:10]:
+                            sample_data.append({col: val for col, val in zip(columns, r)})
 
-                summary = await llm.generate_summary(
-                    nl_query=query["nl_query"],
-                    sql="; ".join(executed_sqls),
-                    row_count=total_rows,
-                    sample_rows=sample_data
-                )
-            except Exception as summary_err:
-                logger.warning(f"Summary generation notice: {summary_err}")
-                summary = f"{total_rows} records returned."
+                    summary = await llm.generate_summary(
+                        nl_query=query["nl_query"],
+                        sql="; ".join(executed_sqls),
+                        row_count=total_rows,
+                        sample_rows=sample_data
+                    )
+                except Exception as summary_err:
+                    logger.warning(f"Summary generation notice: {summary_err}")
+                    summary = f"{total_rows} records returned."
 
         await self.db.query_logs.insert_one({
             "query_id": query_id,
