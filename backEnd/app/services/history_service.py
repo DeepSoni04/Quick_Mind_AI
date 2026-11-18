@@ -63,13 +63,13 @@ class HistoryService:
                     times.append(int(t.replace("ms", "")))
                 except ValueError:
                     pass
-        avg_time = round(sum(times) / len(times)) if times else 34
+        avg_time = round(sum(times) / len(times)) if times else 0
 
         return {
             "total": total,
             "successRate": rate,
             "blocked": blocked,
-            "avgResponseTime": f"{avg_time}ms",
+            "avgResponseTime": f"{avg_time}ms" if total > 0 else "—",
             "recent": history[:5]
         }
 
