@@ -49,3 +49,33 @@ def test_sql_validator_multiple_statement_splitting():
     assert len(statements) == 2
     assert "UPDATE" in statements[0]
     assert "DELETE" in statements[1]
+
+
+def test_sql_validator_system_metadata_tables_permitted():
+    validator = SQLValidator(max_rows=100)
+    permissions = {
+        "tables": {
+            "students": {"allowed": True, "columns": {"id": True, "name": True}}
+        }
+    }
+    sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+    res = validator.validate_statement(sql, dialect="postgres", user_role="analyst", permissions=permissions)
+
+    assert res.validation_status == "valid"
+    assert res.operation == "SELECT"
+
+
+def test_sql_validator_system_metadata_tables_prohibit_modification():
+    validator = SQLValidator(max_rows=100)
+    permissions = {
+        "tables": {
+            "students": {"allowed": True, "columns": {"id": True, "name": True}}
+        }
+    }
+    sql = "DELETE FROM information_schema.tables WHERE table_name = 'students';"
+    res = validator.validate_statement(sql, dialect="postgres", user_role="admin", permissions=permissions)
+
+    assert res.validation_status == "blocked"
+    assert "Modifying system metadata table" in res.validation_message
+
+

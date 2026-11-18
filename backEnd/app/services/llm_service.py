@@ -924,6 +924,44 @@ class MockLLMProvider(LLMProvider):
                 "clarification_choices": None
             }
 
+        # System metadata introspection queries (e.g. "show all tables", "list tables", "show tables")
+        if lower.strip() in (
+            "show all tables", "show tables", "list tables", "list all tables",
+            "get tables", "what tables exist", "show database tables", "view all tables", "show all database tables"
+        ) or (
+            ("table" in lower or "tables" in lower) and
+            any(k in lower for k in ("show all", "list all", "list", "show", "what")) and
+            not any(k in lower for k in ("from", "where", "into", "set", "insert", "update", "delete", "top", "faculty", "student", "booking", "order"))
+        ):
+            if db_type.lower() in ("mongodb", "mongo"):
+                mql = {"collection": "system.namespaces", "operation": "find", "filter": {}}
+                return {
+                    "status": "success",
+                    "intent": "Show all collections in database",
+                    "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "SELECT", "mql": mql}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+            elif db_type.lower() == "mysql":
+                return {
+                    "status": "success",
+                    "intent": "Show all tables in database",
+                    "sql_statements": [{"sql": "SHOW FULL TABLES WHERE Table_type = 'BASE TABLE';", "operation": "SELECT"}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+            else:
+                return {
+                    "status": "success",
+                    "intent": "Show all tables in database",
+                    "sql_statements": [{"sql": "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';", "operation": "SELECT"}],
+                    "needs_clarification": False,
+                    "clarification_question": None,
+                    "clarification_choices": None
+                }
+
         # 2. Clarified Ambiguity Resolutions (prevent infinite ambiguity loop)
         # Faculty clarified ambiguity resolutions
         is_faculty_context = ("faculty" in lower or "faculties" in lower) or (
