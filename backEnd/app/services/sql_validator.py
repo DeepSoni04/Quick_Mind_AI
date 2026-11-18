@@ -9,6 +9,26 @@ from app.schemas.query import SQLStatementInfo
 
 logger = logging.getLogger("querymind.sql_validator")
 
+SYSTEM_SCHEMAS = {
+    "information_schema",
+    "pg_catalog",
+    "sys",
+    "performance_schema",
+    "mysql",
+}
+
+PG_SYSTEM_TABLES = {
+    "pg_tables",
+    "pg_views",
+    "pg_indexes",
+    "pg_stat_user_tables",
+    "pg_database",
+    "pg_class",
+    "pg_namespace",
+    "pg_attribute",
+    "pg_type",
+}
+
 PROHIBITED_TYPES = (
     exp.Drop, exp.Alter, exp.Create, exp.Grant, exp.Revoke,
     exp.Command, exp.Kill
@@ -180,13 +200,23 @@ class SQLValidator:
                 elif hasattr(cte, "this") and getattr(cte.this, "name", None):
                     cte_names.add(str(cte.this.name).lower())
 
-        # Extract Physical Tables
+        # Extract Physical Tables & System Table Metadata
         tables: List[str] = []
+        system_tables: Set[str] = set()
         for table in ast.find_all(exp.Table):
             if table.name:
-                t_low = table.name.lower()
+                t_name = table.name
+                t_low = t_name.lower()
+                schema_name = (table.db or "").lower()
+                is_system = schema_name in SYSTEM_SCHEMAS or t_low in PG_SYSTEM_TABLES
+                if is_system:
+                    system_tables.add(t_low)
+                    if schema_name:
+                        system_tables.add(f"{schema_name}.{t_low}")
+
+                display_name = f"{table.db}.{t_name}" if schema_name in SYSTEM_SCHEMAS else t_name
                 if t_low not in cte_names and t_low not in [t.lower() for t in tables]:
-                    tables.append(table.name)
+                    tables.append(display_name if is_system else t_name)
 
         affected_table = tables[0] if tables else None
 
@@ -203,7 +233,27 @@ class SQLValidator:
             if tables_config:
                 for t_name in tables:
                     t_key = t_name.lower()
-                    if t_key not in tables_config:
+                    base_key = t_key.split(".")[-1]
+
+                    # System catalog metadata views (e.g. information_schema.tables, pg_tables)
+                    if t_key in system_tables or base_key in system_tables:
+                        if operation == "SELECT":
+                            continue  # Reading database system catalog metadata is permitted
+                        else:
+                            return SQLStatementInfo(
+                                statement_index=0,
+                                sql=sql_str,
+                                operation=operation,
+                                validation_status="blocked",
+                                validation_message=f"Modifying system metadata table '{t_name}' is not allowed.",
+                                approval_status="pending",
+                                warning_broad_impact=False,
+                                affected_table=t_name,
+                                tables=tables
+                            )
+
+                    lookup_key = base_key if base_key in tables_config else t_key
+                    if lookup_key not in tables_config:
                         # Table not in whitelist — deny access
                         return SQLStatementInfo(
                             statement_index=0,
@@ -217,7 +267,7 @@ class SQLValidator:
                             tables=tables
                         )
 
-                    t_conf = tables_config[t_key]
+                    t_conf = tables_config[lookup_key]
 
                     # 6a. Table explicitly denied
                     if not t_conf.get("allowed", True):
