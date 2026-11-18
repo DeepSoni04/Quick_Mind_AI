@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import AmbientCanvas from '../components/AmbientCanvas';
 import {
   generateQuery,
@@ -912,8 +911,7 @@ function ResultScreen({ query, data, onNewQuery, onRegenerate, queryId }) {
 
 // ─── Main ChatPage ─────────────────────────────────────────────────────────────
 export default function ChatPage({ view = 'workspace' }) {
-  const { user } = useAuth();
-  const role = user?.role || 'viewer';
+  const { _user } = useAuth();
 
   const [activeQuery,    setActiveQuery]    = useState('');
   const [queryResult,    setQueryResult]    = useState(null);
@@ -942,7 +940,7 @@ export default function ChatPage({ view = 'workspace' }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step 1: User runs Natural Language Query -> Call POST /api/queries
-  const handleRunQuery = useCallback(async (text, inputType = 'text', dbId, dbType) => {
+  const handleRunQuery = useCallback(async (text, _inputType = 'text', dbId) => {
     const trimmed = text.trim();
     if (!trimmed) return;
     setActiveQuery(trimmed);

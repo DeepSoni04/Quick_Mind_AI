@@ -93,8 +93,8 @@ class ExecutionService:
         if not indices_to_run:
             raise HTTPException(status_code=400, detail="No statement indices specified for execution.")
 
-        # 5. Load active permissions for revalidation
-        permissions_dict = await self.schema_service.get_permissions_dict(conn_id)
+        # 5. Load active permissions for revalidation (auto-discovering schema so all physical tables are permitted)
+        permissions_dict = await self.schema_service.get_permissions_dict(conn_id, user_id=user_id)
 
         # 6. Pre-execution revalidation
         for idx in indices_to_run:

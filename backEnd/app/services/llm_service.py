@@ -159,6 +159,11 @@ Rules:
   "clarification_question": null,
   "clarification_choices": null
 }}
+8. TABLE NAME AND ENTITY SINGULAR/PLURAL MATCHING:
+   - Always match the user's entity (e.g. 'students', 'student', 'faculty', 'faculties', 'departments', 'department', 'courses', 'course') to the EXACT physical table name defined in the schema above.
+   - If the user writes plural 'students' or 'show top 5 students' but the schema has 'students', use 'students'. If the schema has 'student', use 'student'.
+   - If the user writes singular 'department' but the schema defines 'departments', use 'departments'.
+   - When the user asks for 'top N' or 'limit N' (e.g. 'show top 5 students'), always generate a LIMIT clause with that exact N (and an ORDER BY if ranking).
 """
 
 
@@ -829,14 +834,31 @@ class MockLLMProvider(LLMProvider):
 
         quote = "`" if db_type == "mysql" else '"'
         target_table = "students"
-        tables = re.findall(r"Table:\s*([a-zA-Z0-9_]+)", schema_text)
-        if "faculty" in lower or "faculties" in lower:
+        tables = re.findall(r"(?:Table|Collection):\s*([a-zA-Z0-9_]+)", schema_text)
+        from app.services.sql_validator import get_table_variants
+        
+        # Build lookup of all available tables with singular/plural variants
+        avail_tables_map: Dict[str, str] = {}
+        for t in tables:
+            avail_tables_map[t.lower()] = t
+            for v in get_table_variants(t):
+                if v not in avail_tables_map:
+                    avail_tables_map[v] = t
+
+        # Match table from query
+        query_words = re.findall(r"[a-zA-Z0-9_]+", lower)
+        matched_target = None
+        for w in query_words:
+            if w in avail_tables_map:
+                matched_target = avail_tables_map[w]
+                break
+
+        if matched_target:
+            target_table = matched_target
+        elif "faculty" in lower or "faculties" in lower:
             target_table = "faculty"
         elif tables:
-            for t in tables:
-                if t.lower() in lower:
-                    target_table = t
-                    break
+            target_table = tables[0]
 
         active_intents = []
         if has_insert_intent: active_intents.append("INSERT")
@@ -1201,6 +1223,12 @@ class MockLLMProvider(LLMProvider):
             op = "INSERT"
 
         if op == "SELECT":
+            limit_clause = ""
+            limit_m = re.search(r'\b(?:top|first|limit)\s+(\d+)\b', lower)
+            if limit_m:
+                limit_num = int(limit_m.group(1))
+                limit_clause = f" LIMIT {limit_num}"
+
             if target_table == "faculty":
                 if "salary" in lower or "salaries" in lower:
                     sql = f"SELECT faculty_id, name, designation, salary FROM {quote}faculty{quote}"
@@ -1216,6 +1244,8 @@ class MockLLMProvider(LLMProvider):
                     sql += f" WHERE {quote}status{quote} = 'Pending'"
                 elif "inactive" in lower:
                     sql += f" WHERE {quote}status{quote} = 'Inactive'"
+            if limit_clause:
+                sql += limit_clause
         elif op == "UPDATE":
             if target_table == "faculty":
                 sql = f"UPDATE {quote}faculty{quote} SET {quote}designation{quote} = 'Professor' WHERE {quote}name{quote} = 'Dr. Amit Sharma'"

@@ -90,10 +90,6 @@ export default function SettingsPage() {
     setSettings((prev) => ({ ...prev, [key]: Number(value) }));
   };
 
-  const hasChanges =
-    draftName.trim() !== savedName ||
-    true; // always allow saving settings preferences
-
   const handleSave = async () => {
     if (saving) return;
 
