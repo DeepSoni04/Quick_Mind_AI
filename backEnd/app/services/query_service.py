@@ -110,8 +110,11 @@ class QueryService:
                 clarification_choices=llm_res.get("clarification_choices")
             )
 
-        # 5. Load applicable permissions from MongoDB for connection
-        permissions_dict = await self.schema_service.get_permissions_dict(conn_id)
+        # 5. Load applicable permissions from MongoDB for connection (merging discovered physical tables)
+        permissions_dict = await self.schema_service.get_permissions_dict(
+            conn_id,
+            discovered_tables=schema_data.tables if schema_data else None
+        )
 
         # 6. Parse & Validate Generated Statements
         raw_statements = llm_res.get("sql_statements", [])
@@ -332,7 +335,15 @@ class QueryService:
 
         dialect = db_conn.get("db_type", "mysql")
         is_mongodb = dialect.lower() in ("mongodb", "mongo")
-        permissions_dict = await self.schema_service.get_permissions_dict(conn_id)
+        schema_data = None
+        try:
+            schema_data = await self.schema_service.discover_schema(conn_id, user_id)
+        except Exception:
+            pass
+        permissions_dict = await self.schema_service.get_permissions_dict(
+            conn_id,
+            discovered_tables=schema_data.tables if schema_data else None
+        )
 
         validated_statements: List[SQLStatementInfo] = []
         overall_status = "valid"
