@@ -390,7 +390,11 @@ class SchemaService:
             logger.warning(f"Error resolving matching connection IDs for {conn_id}: {e}")
         return list(set(matching_conn_ids))
 
-    async def get_permissions_dict(self, conn_id: str) -> Dict[str, Any]:
+    async def get_permissions_dict(
+        self,
+        conn_id: str,
+        discovered_tables: Optional[List[TableSchema]] = None
+    ) -> Dict[str, Any]:
         """Fetch all stored permissions as a lookup dict for SQLValidator, merging across same-target databases."""
         matching_conn_ids = await self._get_matching_conn_ids(conn_id)
         cursor = self.db.schema_access.find({"database_id": {"$in": matching_conn_ids}})
@@ -427,6 +431,29 @@ class SchemaService:
                     ],
                     "columns": cols,
                 }
+
+        # If discovered_tables are provided, ensure all legitimate physical tables from the DB are permitted
+        if discovered_tables:
+            for t in discovered_tables:
+                t_name = getattr(t, "name", None) or getattr(t, "table_name", None)
+                if not t_name:
+                    continue
+                t_key = t_name.lower()
+                if t_key not in tables_dict:
+                    cols_dict = {}
+                    for col in getattr(t, "columns", []):
+                        c_name = getattr(col, "name", None) or getattr(col, "column_name", None) or str(col)
+                        cols_dict[c_name.lower()] = {
+                            "allowed": True,
+                            "target_role": "all",
+                            "allowed_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"]
+                        }
+                    tables_dict[t_key] = {
+                        "allowed": True,
+                        "allowed_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+                        "columns": cols_dict
+                    }
+
         return {"tables": tables_dict}
 
     async def apply_natural_language_rule(
