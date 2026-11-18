@@ -32,7 +32,7 @@ export default function AdminPage() {
   const [users, setUsers]         = useState([]);
   const [search, setSearch]       = useState('');
   const [securityLogs, setSecurityLogs] = useState([]);
-  const [_loadingUsers, setLoadingUsers] = useState(true);
+  const [, setLoadingUsers] = useState(true);
 
   // Role request state
   const [roleRequests, setRoleRequests]         = useState([]);

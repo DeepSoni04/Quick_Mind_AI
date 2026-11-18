@@ -40,6 +40,73 @@ PROHIBITED_KEYWORDS = {
 }
 
 
+def get_table_variants(name: str) -> Set[str]:
+    """Generate common singular/plural variants for a table name."""
+    if not name:
+        return set()
+    low = name.lower().strip().strip('"`')
+    if "." in low:
+        low = low.split(".")[-1]
+    variants = {low}
+
+    # 1. Singular -> Plural
+    if low.endswith('y') and not low.endswith(('ay', 'ey', 'oy', 'uy')):
+        variants.add(low[:-1] + 'ies')   # faculty -> faculties, category -> categories
+    elif low.endswith(('s', 'x', 'z', 'ch', 'sh')):
+        variants.add(low + 'es')         # class -> classes, branch -> branches, box -> boxes
+        if low.endswith('ss'):
+            variants.add(low)
+        elif low.endswith('es') and len(low) > 3:
+            variants.add(low[:-2])       # classes -> class, boxes -> box
+            variants.add(low[:-1])       # courses -> course
+        elif low.endswith('s') and len(low) > 2:
+            variants.add(low[:-1])       # students -> student
+    else:
+        variants.add(low + 's')           # student -> students, department -> departments, order -> orders
+        variants.add(low + 'es')
+
+    # 2. Plural -> Singular
+    if low.endswith('ies') and len(low) > 3:
+        variants.add(low[:-3] + 'y')     # faculties -> faculty, categories -> category
+    if low.endswith('es') and len(low) > 3:
+        variants.add(low[:-2])           # branches -> branch, boxes -> box
+        variants.add(low[:-1])           # courses -> course
+    if low.endswith('s') and not low.endswith('ss') and len(low) > 2:
+        variants.add(low[:-1])           # students -> student, bookings -> booking, customers -> customer
+
+    # Irregular nouns
+    irregulars = {
+        "person": "people", "people": "person",
+        "child": "children", "children": "child",
+        "man": "men", "men": "man",
+        "woman": "women", "women": "woman",
+        "datum": "data", "data": "datum",
+        "criterion": "criteria", "criteria": "criterion",
+        "index": "indexes", "indexes": "index"
+    }
+    if low in irregulars:
+        variants.add(irregulars[low])
+
+    return variants
+
+
+def find_matching_table(candidate: str, known_tables: Any) -> Optional[str]:
+    """Find exact or singular/plural matching key in known_tables."""
+    if not candidate or not known_tables:
+        return None
+    c_low = candidate.lower().strip().strip('"`')
+    if "." in c_low:
+        c_low = c_low.split(".")[-1]
+
+    tables_set = set(k.lower() for k in known_tables)
+    if c_low in tables_set:
+        return c_low
+    for variant in get_table_variants(c_low):
+        if variant in tables_set:
+            return variant
+    return None
+
+
 class SQLValidator:
     def __init__(self, max_rows: int = None):
         self.max_rows = max_rows or settings.MAX_QUERY_ROWS
@@ -254,18 +321,39 @@ class SQLValidator:
 
                     lookup_key = base_key if base_key in tables_config else t_key
                     if lookup_key not in tables_config:
-                        # Table not in whitelist — deny access
-                        return SQLStatementInfo(
-                            statement_index=0,
-                            sql=sql_str,
-                            operation=operation,
-                            validation_status="blocked",
-                            validation_message=f"Table '{t_name}' is not allowed. Only permitted tables may be queried.",
-                            approval_status="pending",
-                            warning_broad_impact=False,
-                            affected_table=t_name,
-                            tables=tables
-                        )
+                        matched_key = find_matching_table(base_key, tables_config) or find_matching_table(t_key, tables_config)
+                        if matched_key:
+                            lookup_key = matched_key
+                            # Morphological match: rewrite table name in AST to actual physical table in database
+                            has_renamed = False
+                            for tbl_node in ast.find_all(exp.Table):
+                                tbl_name_low = (tbl_node.name or "").lower()
+                                if tbl_name_low in (base_key, t_key) or tbl_name_low in get_table_variants(matched_key):
+                                    tbl_node.set("this", exp.to_identifier(matched_key, quoted=(glot_dialect == "postgres")))
+                                    has_renamed = True
+                            # Also rewrite qualified column table prefixes (e.g. students.name -> student.name)
+                            for col_node in ast.find_all(exp.Column):
+                                if col_node.table and (col_node.table.lower() in (base_key, t_key) or col_node.table.lower() in get_table_variants(matched_key)):
+                                    col_node.set("table", exp.to_identifier(matched_key, quoted=(glot_dialect == "postgres")))
+                            if has_renamed:
+                                sql_str = ast.sql(dialect=glot_dialect)
+                                if t_name in tables:
+                                    tables[tables.index(t_name)] = matched_key
+                                t_name = matched_key
+                                affected_table = tables[0] if tables else matched_key
+                        else:
+                            # Table not in whitelist — deny access
+                            return SQLStatementInfo(
+                                statement_index=0,
+                                sql=sql_str,
+                                operation=operation,
+                                validation_status="blocked",
+                                validation_message=f"Table '{t_name}' is not allowed. Only permitted tables may be queried.",
+                                approval_status="pending",
+                                warning_broad_impact=False,
+                                affected_table=t_name,
+                                tables=tables
+                            )
 
                     t_conf = tables_config[lookup_key]
 
@@ -321,7 +409,7 @@ class SQLValidator:
 
                     for col_tbl, col_name in referenced_columns:
                         # Match if column belongs to this table or table was omitted in single-table query
-                        if col_tbl is None or col_tbl == t_key:
+                        if col_tbl is None or col_tbl == t_key or col_tbl == lookup_key or (lookup_key and col_tbl in get_table_variants(lookup_key)):
                             if col_name in cols_conf:
                                 c_conf = cols_conf[col_name]
                                 t_role = c_conf.get("target_role", "all").lower()

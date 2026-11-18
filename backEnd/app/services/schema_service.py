@@ -393,6 +393,7 @@ class SchemaService:
     async def get_permissions_dict(
         self,
         conn_id: str,
+        user_id: Optional[str] = None,
         discovered_tables: Optional[List[TableSchema]] = None
     ) -> Dict[str, Any]:
         """Fetch all stored permissions as a lookup dict for SQLValidator, merging across same-target databases."""
@@ -432,7 +433,18 @@ class SchemaService:
                     "columns": cols,
                 }
 
-        # If discovered_tables are provided, ensure all legitimate physical tables from the DB are permitted
+        # If discovered_tables not provided, attempt auto-discovery using target database connection
+        if discovered_tables is None:
+            try:
+                target_conn = await self.db.database_connections.find_one({"_id": ObjectId(conn_id)})
+                owner_id = user_id or (str(target_conn.get("created_by")) if target_conn else None)
+                if owner_id:
+                    schema_res = await self.discover_schema(conn_id, owner_id)
+                    discovered_tables = schema_res.tables
+            except Exception as e:
+                logger.debug(f"Auto-discovery in get_permissions_dict skipped or failed: {e}")
+
+        # If discovered_tables are provided or found, ensure all legitimate physical tables from the DB are permitted
         if discovered_tables:
             for t in discovered_tables:
                 t_name = getattr(t, "name", None) or getattr(t, "table_name", None)
@@ -453,6 +465,18 @@ class SchemaService:
                         "allowed_operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
                         "columns": cols_dict
                     }
+
+        # Also mirror permissions to common singular/plural variants so lookups match in all forms
+        try:
+            from app.services.sql_validator import get_table_variants
+            variant_entries: Dict[str, Any] = {}
+            for base_t, base_conf in tables_dict.items():
+                for v in get_table_variants(base_t):
+                    if v not in tables_dict and v not in variant_entries:
+                        variant_entries[v] = base_conf
+            tables_dict.update(variant_entries)
+        except Exception as e:
+            logger.debug(f"Error seeding table variants in permissions dict: {e}")
 
         return {"tables": tables_dict}
 

@@ -101,4 +101,80 @@ async def test_mock_llm_insert_faculty_not_hijacked_as_select():
     assert val_res.operation == "INSERT"
 
 
+def test_sql_validator_singular_plural_query_plural_db_singular():
+    """Verify that a query for 'students' against a database having 'student' validates and rewrites AST."""
+    validator = SQLValidator(max_rows=100)
+    permissions = {
+        "tables": {
+            "student": {"allowed": True, "columns": {"id": {"allowed": True}, "name": {"allowed": True}}}
+        }
+    }
+    sql = 'SELECT * FROM "students" LIMIT 5;'
+    res = validator.validate_statement(sql, dialect="postgres", user_role="analyst", permissions=permissions)
+
+    assert res.validation_status == "valid"
+    assert res.operation == "SELECT"
+    assert res.affected_table == "student"
+    assert '"student"' in res.sql
+    assert "students" not in res.sql
+
+
+def test_sql_validator_singular_plural_query_singular_db_plural():
+    """Verify that a query for 'department' against a database having 'departments' validates and rewrites AST."""
+    validator = SQLValidator(max_rows=100)
+    permissions = {
+        "tables": {
+            "departments": {"allowed": True, "columns": {"id": {"allowed": True}, "name": {"allowed": True}}}
+        }
+    }
+    sql = 'SELECT * FROM "department" LIMIT 10;'
+    res = validator.validate_statement(sql, dialect="postgres", user_role="analyst", permissions=permissions)
+
+    assert res.validation_status == "valid"
+    assert res.operation == "SELECT"
+    assert res.affected_table == "departments"
+    assert '"departments"' in res.sql
+
+
+def test_sql_validator_singular_plural_faculty_faculties():
+    """Verify that a query for 'faculties' against a database having 'faculty' validates and rewrites AST."""
+    validator = SQLValidator(max_rows=100)
+    permissions = {
+        "tables": {
+            "faculty": {"allowed": True, "columns": {"id": {"allowed": True}, "name": {"allowed": True}}}
+        }
+    }
+    sql = 'SELECT * FROM "faculties";'
+    res = validator.validate_statement(sql, dialect="postgres", user_role="analyst", permissions=permissions)
+
+    assert res.validation_status == "valid"
+    assert res.operation == "SELECT"
+    assert res.affected_table == "faculty"
+    assert '"faculty"' in res.sql
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_top_n_students_with_singular_plural_resolution():
+    """Verify MockLLMProvider extracts Top N limit and resolves singular/plural table names."""
+    from app.services.llm_service import MockLLMProvider
+    provider = MockLLMProvider()
+
+    # 1. Schema has plural 'students'
+    schema_plural = "Table: students\nColumns: student_id, name, email, cgpa"
+    res1 = await provider.generate_sql("show top 5 students", "postgres", schema_plural)
+    assert res1["status"] == "success"
+    stmt1 = res1["sql_statements"][0]
+    assert "LIMIT 5" in stmt1["sql"]
+    assert '"students"' in stmt1["sql"]
+
+    # 2. Schema has singular 'student'
+    schema_singular = "Table: student\nColumns: student_id, name, email, cgpa"
+    res2 = await provider.generate_sql("show top 5 students", "postgres", schema_singular)
+    assert res2["status"] == "success"
+    stmt2 = res2["sql_statements"][0]
+    assert "LIMIT 5" in stmt2["sql"]
+    assert '"student"' in stmt2["sql"]
+
+
+
 
