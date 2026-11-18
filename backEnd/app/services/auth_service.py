@@ -49,27 +49,24 @@ class AuthService:
         # Retrieve live metrics from database collections
         try:
             total_queries = await self.db.queries.count_documents({"user_id": user_id})
-            if total_queries == 0 and role == "admin":
-                # If fresh dev seed, count all system queries or provide baseline
-                total_queries = await self.db.queries.count_documents({})
-                if total_queries == 0:
-                    total_queries = 342
+            connected_clusters = await self.db.database_connections.count_documents({"created_by": user_id})
 
-            connected_clusters = await self.db.database_connections.count_documents({})
-            if connected_clusters == 0:
-                connected_clusters = 3
-
-            saved_queries_count = 28
+            saved_queries_count = 0
             if "saved_queries" in await self.db.list_collection_names():
-                saved_queries_count = await self.db.saved_queries.count_documents({})
+                saved_queries_count = await self.db.saved_queries.count_documents({"user_id": user_id})
 
-            success_rate = "99.6%"
+            if total_queries > 0:
+                success_count = await self.db.queries.count_documents({"user_id": user_id, "execution_status": "success"})
+                rate_num = round((success_count / total_queries) * 100, 1)
+                success_rate = f"{rate_num}%"
+            else:
+                success_rate = "100%"
         except Exception as e:
             logger.warning(f"Could not load live user stats from database: {e}")
-            total_queries = 342
-            connected_clusters = 3
-            saved_queries_count = 28
-            success_rate = "99.6%"
+            total_queries = 0
+            connected_clusters = 0
+            saved_queries_count = 0
+            success_rate = "100%"
 
         stats = UserStats(
             queries_run=total_queries,

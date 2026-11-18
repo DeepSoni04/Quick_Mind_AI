@@ -38,10 +38,10 @@ function enrichUser(u) {
     apiToken: u.api_token || u.apiToken || 'qm_live_a89f3c01e742b89d5543c2e109ab7d34',
     twoFactorEnabled: u.two_factor_enabled !== undefined ? !!u.two_factor_enabled : (u.twoFactorEnabled !== undefined ? !!u.twoFactorEnabled : true),
     stats: {
-      queriesRun: u.stats?.queries_run ?? u.stats?.queriesRun ?? 342,
-      savedQueries: u.stats?.saved_queries ?? u.stats?.savedQueries ?? 28,
-      connectedClusters: u.stats?.connected_clusters ?? u.stats?.connectedClusters ?? 3,
-      successRate: u.stats?.success_rate ?? u.stats?.successRate ?? '99.6%',
+      queriesRun: u.stats?.queries_run ?? u.stats?.queriesRun ?? 0,
+      savedQueries: u.stats?.saved_queries ?? u.stats?.savedQueries ?? 0,
+      connectedClusters: u.stats?.connected_clusters ?? u.stats?.connectedClusters ?? 0,
+      successRate: u.stats?.success_rate ?? u.stats?.successRate ?? '100%',
     },
   };
 }

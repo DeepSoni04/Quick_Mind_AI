@@ -111,6 +111,15 @@ function ConnectionsScreen() {
           );
         })}
 
+        {!loading && connections.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '36px 20px', color: 'rgba(224,224,230,0.5)', width: '100%' }}>
+            <p style={{ fontSize: 15, fontWeight: 500, marginBottom: 6, color: 'rgba(224,224,230,0.85)' }}>No database connections yet</p>
+            <p style={{ fontSize: 13, maxWidth: 380, margin: '0 auto' }}>
+              Add your first MongoDB, MySQL, or PostgreSQL database connection to begin querying.
+            </p>
+          </div>
+        )}
+
         {/* Add-another dashed slot */}
         <button
           type="button"
@@ -121,7 +130,7 @@ function ConnectionsScreen() {
             <line x1="8" y1="2" x2="8" y2="14" />
             <line x1="2" y1="8" x2="14" y2="8" />
           </svg>
-          Add another connection
+          {connections.length === 0 ? 'Connect a database' : 'Add another connection'}
         </button>
       </div>
     </div>
