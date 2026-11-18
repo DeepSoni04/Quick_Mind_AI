@@ -214,7 +214,7 @@ class GeminiProvider(LLMProvider):
 
     def __init__(self, api_key: str = "", model: str = ""):
         self.api_key = api_key or settings.LLM_API_KEY or os.getenv("GEMINI_API_KEY", "")
-        self.model = model or getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash") or "gemini-2.5-flash"
+        self.model = model or getattr(settings, "GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
 
     def is_available(self) -> bool:
         return bool(self.api_key and self.api_key.strip())
@@ -962,16 +962,34 @@ class MockLLMProvider(LLMProvider):
                     "clarification_choices": None
                 }
 
-        # 2. Clarified Ambiguity Resolutions (prevent infinite ambiguity loop)
+        # 2. Explicit Data Modification Operations (INSERT, UPDATE, DELETE)
+        # Evaluated before ambiguity triggers or SELECT resolutions so modifications are NEVER hijacked!
+        is_insert_op = bool(re.search(r"\b(insert|add|create|new entry|new record)\b", lower)) and not any(k in lower for k in ("how to insert", "how to add", "why", "count of", "number of"))
+        is_update_op = bool(re.search(r"\b(update|change|modify|set)\b", lower))
+        is_delete_op = bool(re.search(r"\b(delete|remove|erase|purge)\b", lower))
+
+        if is_insert_op:
+            return self._generate_insert_query(nl_query, lower, db_type, schema_text, quote, target_table)
+        elif is_update_op:
+            return self._generate_update_query(nl_query, lower, db_type, schema_text, quote, target_table)
+        elif is_delete_op:
+            return self._generate_delete_query(nl_query, lower, db_type, schema_text, quote, target_table)
+
+        # 3. Clarified Ambiguity Resolutions (prevent infinite ambiguity loop for SELECT queries)
         # Faculty clarified ambiguity resolutions
-        is_faculty_context = ("faculty" in lower or "faculties" in lower) or (
-            "faculty" in schema_text.lower() and any(k in lower for k in (
+        is_faculty_context = (
+            ("faculty" in lower or "faculties" in lower) or
+            any(k in lower for k in ("highest paid", "rank by highest paid", "highest paid status", "rank by designation", "by designation", "all faculty", "show all faculty")) or
+            ("faculty" in schema_text.lower() and any(k in lower for k in (
                 "highest paid", "highest paid status", "rank by highest paid",
                 "rank by designation", "show all faculty", "faculty details"
-            ))
-        ) or any(k in lower for k in ("highest paid", "rank by highest paid", "highest paid status"))
+            )))
+        )
 
-        if is_faculty_context and any(k in lower for k in ("highest paid", "salary", "paid status", "highest paid status", "rank by highest paid")):
+        if is_faculty_context and any(k in lower for k in (
+            "highest paid", "rank by highest paid", "highest paid status", "rank by salary",
+            "top paid", "best paid", "highest salary", "rank by highest paid (salary)"
+        )):
             if db_type.lower() in ("mongodb", "mongo"):
                 mql = {"collection": "faculty", "operation": "find", "filter": {}, "sort": {"salary": -1}}
                 return {
@@ -994,7 +1012,7 @@ class MockLLMProvider(LLMProvider):
                     "clarification_choices": None
                 }
 
-        if is_faculty_context and "designation" in lower:
+        if is_faculty_context and any(k in lower for k in ("rank by designation", "by designation", "designation rank")):
             if db_type.lower() in ("mongodb", "mongo"):
                 mql = {"collection": "faculty", "operation": "find", "filter": {}, "sort": {"designation": 1}}
                 return {
@@ -1017,7 +1035,7 @@ class MockLLMProvider(LLMProvider):
                     "clarification_choices": None
                 }
 
-        if is_faculty_context and any(k in lower for k in ("all faculty", "show all", "all details", "show all faculty details")):
+        if is_faculty_context and any(k in lower for k in ("all faculty", "show all faculty", "all details", "show all faculty details", "show all faculty members")):
             if db_type.lower() in ("mongodb", "mongo"):
                 mql = {"collection": "faculty", "operation": "find", "filter": {}}
                 return {
@@ -1217,6 +1235,380 @@ class MockLLMProvider(LLMProvider):
             "status": "success",
             "intent": f"Perform {op} on {target_table}",
             "sql_statements": [{"sql": sql, "operation": op}],
+            "needs_clarification": False,
+            "clarification_question": None,
+            "clarification_choices": None
+        }
+
+    def _parse_insert_details(self, nl_query: str, target_table: str, schema_text: str = "") -> Tuple[List[str], List[Any]]:
+        clean = nl_query.strip()
+        lower = clean.lower()
+        fields: Dict[str, Any] = {}
+
+        # 1. Email extraction
+        email_m = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', clean)
+        if email_m:
+            fields["email"] = email_m.group(0)
+
+        # 2. Specific key-value patterns: e.g. "id=6", "faculty_id: 6", "cgpa=9.2", "salary=24000"
+        kv_pairs = re.findall(r'(\b[a-zA-Z_][a-zA-Z0-9_]*)\s*[:=]\s*([\'"][^\'"]+[\'"]|[A-Za-z0-9_\.@-]+)', clean)
+        for k, v in kv_pairs:
+            k_low = k.lower()
+            val = v.strip("'\"")
+            if re.match(r'^-?\d+$', val):
+                val = int(val)
+            elif re.match(r'^-?\d+\.\d+$', val):
+                val = float(val)
+
+            if k_low in ("id", "faculty_id", "student_id", "cid", "bid", "aid", "spid"):
+                if target_table == "faculty":
+                    fields["faculty_id"] = val
+                elif target_table == "students":
+                    fields["student_id"] = val
+                else:
+                    fields[k_low] = val
+            elif k_low in ("salary", "sal"):
+                fields["salary"] = val
+            elif k_low in ("department_id", "dept_id", "department", "dept"):
+                if isinstance(val, int) or (isinstance(val, str) and val.isdigit()):
+                    fields["department_id"] = int(val)
+                else:
+                    fields["department"] = val
+            elif k_low in ("designation", "role", "title"):
+                fields["designation"] = val.title()
+            elif k_low in ("cgpa", "gpa"):
+                fields["cgpa"] = val
+            elif k_low in ("name", "full_name"):
+                fields["name"] = val
+            elif k_low == "email":
+                fields["email"] = val
+            elif k_low not in ("add", "insert", "table", "into"):
+                fields[k_low] = val
+
+        # 3. Department: e.g. "who is in 3rd department", "in 2nd department", "department 3", "dept 1"
+        if "department_id" not in fields and "department" not in fields:
+            dept_m = re.search(r'(?:in\s+)?(\d+)(?:st|nd|rd|th)?\s+department', lower)
+            if not dept_m:
+                dept_m = re.search(r'department\s*(?:id|number|no)?\s*[:=]?\s*(\d+)', lower)
+            if not dept_m:
+                dept_m = re.search(r'dept(?:_id)?\s*[:=]?\s*(\d+)', lower)
+            if dept_m:
+                fields["department_id"] = int(dept_m.group(1))
+
+        # 4. Salary: e.g. "with 24000 salary", "salary of 24000", "salary 24000", "earning 24000"
+        if "salary" not in fields:
+            sal_m = re.search(r'(?:with|earning|salary|salary of|having)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:salary)?', lower)
+            if sal_m and "department" not in sal_m.group(0):
+                val = int(sal_m.group(1)) if sal_m.group(1).isdigit() else float(sal_m.group(1))
+                if val != fields.get("faculty_id") and val != fields.get("department_id"):
+                    fields["salary"] = val
+            if "salary" not in fields:
+                sal_m2 = re.search(r'(\d{4,7})\s*(?:salary|inr|rs|\$)?', lower)
+                if sal_m2:
+                    fields["salary"] = int(sal_m2.group(1))
+
+        # 5. Designation: e.g. "he is a professor", "is a professor", "as assistant professor", "designation professor"
+        if "designation" not in fields:
+            desig_patterns = [
+                "associate professor", "assistant professor", "senior professor",
+                "visiting faculty", "professor", "lecturer", "dean", "hod", "head of department",
+                "researcher", "assistant"
+            ]
+            for dp in desig_patterns:
+                if re.search(rf'\b{dp}\b', lower):
+                    fields["designation"] = dp.title()
+                    break
+
+        # 6. Name: e.g. "Prof.Janak Sharma", "Dr. Amit Sharma", "Prof. Janak Sharma", "Rahul Sharma"
+        if "name" not in fields:
+            title_name_m = re.search(r'(?:Prof\.|Dr\.|Mr\.|Mrs\.|Ms\.)\s*[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)+', clean)
+            if title_name_m:
+                fields["name"] = title_name_m.group(0).strip()
+            else:
+                name_m = re.search(rf'(?:add|insert|new)\s+(?:faculty|student|customer)\s+(?:id=\d+,\s*)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)', clean)
+                if name_m:
+                    fields["name"] = name_m.group(1).strip()
+
+        # 7. CGPA for students
+        if target_table == "students" and "cgpa" not in fields:
+            cgpa_m = re.search(r'cgpa\s*[:=]?\s*(\d+(?:\.\d+)?)', lower)
+            if cgpa_m:
+                fields["cgpa"] = float(cgpa_m.group(1))
+
+        # 8. Table-specific canonical order and defaults
+        if target_table == "faculty":
+            cols = []
+            vals = []
+            if "faculty_id" in fields:
+                cols.append("faculty_id")
+                vals.append(fields["faculty_id"])
+            if "name" in fields:
+                cols.append("name")
+                vals.append(fields["name"])
+            elif not cols:
+                cols.append("name")
+                vals.append("Dr. Amit Sharma")
+
+            if "email" in fields:
+                cols.append("email")
+                vals.append(fields["email"])
+            if "department_id" in fields:
+                cols.append("department_id")
+                vals.append(fields["department_id"])
+            elif "department" in fields:
+                cols.append("department")
+                vals.append(fields["department"])
+            if "designation" in fields:
+                cols.append("designation")
+                vals.append(fields["designation"])
+            if "salary" in fields:
+                cols.append("salary")
+                vals.append(fields["salary"])
+            return cols, vals
+
+        cols = list(fields.keys())
+        vals = list(fields.values())
+        if not cols:
+            cols = ["name"]
+            vals = ["New Entry"]
+        return cols, vals
+
+    def _generate_insert_query(
+        self,
+        nl_query: str,
+        lower: str,
+        db_type: str,
+        schema_text: str,
+        quote: str,
+        target_table: str
+    ) -> Dict[str, Any]:
+        """Generate deterministic and intelligent INSERT query for SQL and MongoDB."""
+        clean = nl_query.strip()
+        if lower.startswith("insert into"):
+            raw_sql = clean if clean.endswith(";") else clean + ";"
+            return {
+                "status": "success",
+                "intent": f"Insert record into {target_table}",
+                "sql_statements": [{"sql": raw_sql, "operation": "INSERT"}],
+                "needs_clarification": False,
+                "clarification_question": None,
+                "clarification_choices": None
+            }
+
+        cols, vals = self._parse_insert_details(nl_query, target_table, schema_text)
+
+        if db_type.lower() in ("mongodb", "mongo"):
+            doc = dict(zip(cols, vals))
+            mql = {"collection": target_table, "operation": "insert_one", "document": doc}
+            return {
+                "status": "success",
+                "intent": f"Insert document into {target_table} collection",
+                "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "INSERT", "mql": mql}],
+                "needs_clarification": False,
+                "clarification_question": None,
+                "clarification_choices": None
+            }
+
+        def format_sql_val(v):
+            if isinstance(v, (int, float)):
+                return str(v)
+            escaped = str(v).replace("'", "''")
+            return f"'{escaped}'"
+
+        col_clause = ", ".join(f"{quote}{c}{quote}" if db_type == "mysql" else c for c in cols)
+        val_clause = ", ".join(format_sql_val(v) for v in vals)
+        sql = f"INSERT INTO {quote}{target_table}{quote} ({col_clause}) VALUES ({val_clause});"
+
+        person_name = dict(zip(cols, vals)).get("name")
+        intent = f"Add new {target_table} record {person_name}" if person_name else f"Insert record into {target_table}"
+
+        return {
+            "status": "success",
+            "intent": intent,
+            "sql_statements": [{"sql": sql, "operation": "INSERT"}],
+            "needs_clarification": False,
+            "clarification_question": None,
+            "clarification_choices": None
+        }
+
+    def _generate_update_query(
+        self,
+        nl_query: str,
+        lower: str,
+        db_type: str,
+        schema_text: str,
+        quote: str,
+        target_table: str
+    ) -> Dict[str, Any]:
+        """Generate deterministic and intelligent UPDATE query for SQL and MongoDB."""
+        clean = nl_query.strip()
+        if lower.startswith("update "):
+            raw_sql = clean if clean.endswith(";") else clean + ";"
+            return {
+                "status": "success",
+                "intent": f"Update {target_table} record",
+                "sql_statements": [{"sql": raw_sql, "operation": "UPDATE"}],
+                "needs_clarification": False,
+                "clarification_question": None,
+                "clarification_choices": None
+            }
+
+        set_clauses = []
+        mql_set = {}
+
+        sal_m = re.search(r'(?:salary\s*(?:to|=)\s*|\bset\s+salary\s*=\s*)(\d+)', lower)
+        if sal_m:
+            val = int(sal_m.group(1))
+            set_clauses.append(f"{quote}salary{quote} = {val}" if db_type == "mysql" else f"salary = {val}")
+            mql_set["salary"] = val
+
+        desig_m = re.search(r'(?:designation\s*(?:to|=)\s*|\bset\s+designation\s*=\s*)[\'"]?([a-zA-Z\s]+?)[\'"]?(?:\s+where|\s+for|$)', lower)
+        if desig_m:
+            val = desig_m.group(1).strip().title()
+            set_clauses.append(f"{quote}designation{quote} = '{val}'" if db_type == "mysql" else f"designation = '{val}'")
+            mql_set["designation"] = val
+
+        cgpa_m = re.search(r'(?:cgpa\s*(?:to|=)\s*|\bset\s+cgpa\s*=\s*)(\d+(?:\.\d+)?)', lower)
+        if cgpa_m:
+            val = float(cgpa_m.group(1))
+            set_clauses.append(f"cgpa = {val}")
+            mql_set["cgpa"] = val
+
+        dept_m = re.search(r'(?:department\s*(?:to|=)\s*|\bset\s+department\s*=\s*)[\'"]?([a-zA-Z0-9_\s]+?)[\'"]?(?:\s+where|\s+for|$)', clean, re.IGNORECASE)
+        if dept_m:
+            val = dept_m.group(1).strip()
+            if val.isdigit():
+                val = int(val)
+                col = "department_id"
+                set_clauses.append(f"{col} = {val}")
+                mql_set[col] = val
+            else:
+                set_clauses.append(f"department = '{val}'")
+                mql_set["department"] = val
+
+        if not set_clauses:
+            if target_table == "faculty":
+                set_clauses.append("designation = 'Professor'")
+                mql_set["designation"] = "Professor"
+            else:
+                set_clauses.append("status = 'Active'")
+                mql_set["status"] = "Active"
+
+        where_clauses = []
+        mql_filter = {}
+
+        id_m = re.search(r'(?:faculty_id|student_id|id)\s*[:=]?\s*(\d+)', lower)
+        if id_m:
+            val = int(id_m.group(1))
+            col = "faculty_id" if target_table == "faculty" else ("student_id" if target_table == "students" else "id")
+            where_clauses.append(f"{col} = {val}")
+            mql_filter[col] = val
+
+        name_m = re.search(r'(?:for|where|named?)\s+[\'"]?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)[\'"]?', clean)
+        if name_m and not id_m:
+            val = name_m.group(1).strip()
+            where_clauses.append(f"name = '{val}'")
+            mql_filter["name"] = val
+
+        where_str = " AND ".join(where_clauses) if where_clauses else "id = 1"
+        if not mql_filter:
+            mql_filter = {"id": 1}
+
+        if db_type.lower() in ("mongodb", "mongo"):
+            mql = {
+                "collection": target_table,
+                "operation": "update_one" if id_m or name_m else "update_many",
+                "filter": mql_filter,
+                "update": {"$set": mql_set}
+            }
+            return {
+                "status": "success",
+                "intent": f"Update {target_table} document",
+                "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "UPDATE", "mql": mql}],
+                "needs_clarification": False,
+                "clarification_question": None,
+                "clarification_choices": None
+            }
+
+        sql = f"UPDATE {quote}{target_table}{quote} SET {', '.join(set_clauses)} WHERE {where_str};"
+        return {
+            "status": "success",
+            "intent": f"Update {target_table} record",
+            "sql_statements": [{"sql": sql, "operation": "UPDATE"}],
+            "needs_clarification": False,
+            "clarification_question": None,
+            "clarification_choices": None
+        }
+
+    def _generate_delete_query(
+        self,
+        nl_query: str,
+        lower: str,
+        db_type: str,
+        schema_text: str,
+        quote: str,
+        target_table: str
+    ) -> Dict[str, Any]:
+        """Generate deterministic and intelligent DELETE query for SQL and MongoDB."""
+        clean = nl_query.strip()
+        if lower.startswith("delete "):
+            raw_sql = clean if clean.endswith(";") else clean + ";"
+            return {
+                "status": "success",
+                "intent": f"Delete from {target_table}",
+                "sql_statements": [{"sql": raw_sql, "operation": "DELETE"}],
+                "needs_clarification": False,
+                "clarification_question": None,
+                "clarification_choices": None
+            }
+
+        where_clauses = []
+        mql_filter = {}
+
+        id_m = re.search(r'(?:faculty_id|student_id|id)\s*[:=]?\s*(\d+)', lower)
+        if id_m:
+            val = int(id_m.group(1))
+            col = "faculty_id" if target_table == "faculty" else ("student_id" if target_table == "students" else "id")
+            where_clauses.append(f"{col} = {val}")
+            mql_filter[col] = val
+
+        email_m = re.search(r'[\w\.-]+@[\w\.-]+', clean)
+        if email_m:
+            val = email_m.group(0)
+            where_clauses.append(f"email = '{val}'")
+            mql_filter["email"] = val
+
+        if "inactive" in lower:
+            where_clauses.append("status = 'inactive'")
+            mql_filter["status"] = "inactive"
+        elif "pending" in lower:
+            where_clauses.append("status = 'pending'")
+            mql_filter["status"] = "pending"
+
+        where_str = " AND ".join(where_clauses) if where_clauses else "status = 'inactive'"
+        if not mql_filter:
+            mql_filter = {"status": "inactive"}
+
+        if db_type.lower() in ("mongodb", "mongo"):
+            mql = {
+                "collection": target_table,
+                "operation": "delete_one" if id_m or email_m else "delete_many",
+                "filter": mql_filter
+            }
+            return {
+                "status": "success",
+                "intent": f"Delete from {target_table} collection",
+                "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "DELETE", "mql": mql}],
+                "needs_clarification": False,
+                "clarification_question": None,
+                "clarification_choices": None
+            }
+
+        sql = f"DELETE FROM {quote}{target_table}{quote} WHERE {where_str};"
+        return {
+            "status": "success",
+            "intent": f"Delete from {target_table}",
+            "sql_statements": [{"sql": sql, "operation": "DELETE"}],
             "needs_clarification": False,
             "clarification_question": None,
             "clarification_choices": None
