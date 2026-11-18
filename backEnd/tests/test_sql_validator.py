@@ -79,3 +79,26 @@ def test_sql_validator_system_metadata_tables_prohibit_modification():
     assert "Modifying system metadata table" in res.validation_message
 
 
+@pytest.mark.asyncio
+async def test_mock_llm_insert_faculty_not_hijacked_as_select():
+    from app.services.llm_service import MockLLMProvider
+    provider = MockLLMProvider()
+    query = "add faculty id=6, Prof.Janak Sharma,janak@mail.com who is in 3rd department and he is a professor with 24000 salary"
+    res = await provider.generate_sql(query, "postgres", "")
+
+    assert res["status"] == "success"
+    assert len(res["sql_statements"]) == 1
+    stmt = res["sql_statements"][0]
+    assert stmt["operation"] == "INSERT"
+    assert "INSERT INTO" in stmt["sql"]
+    assert "Prof.Janak Sharma" in stmt["sql"]
+    assert "janak@mail.com" in stmt["sql"]
+    assert "24000" in stmt["sql"]
+
+    validator = SQLValidator()
+    val_res = validator.validate_statement(stmt["sql"], dialect="postgres", user_role="analyst")
+    assert val_res.validation_status == "valid"
+    assert val_res.operation == "INSERT"
+
+
+
