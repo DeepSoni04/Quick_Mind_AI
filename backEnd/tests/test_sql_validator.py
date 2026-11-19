@@ -180,41 +180,51 @@ async def test_mock_llm_top_n_students_with_singular_plural_resolution():
 
 @pytest.mark.asyncio
 async def test_mock_llm_ranking_ambiguity_clarification_dialog():
-    """Verify Smart Ambiguity Clarification triggers on unspecified ranking metrics and preserves Top N on clarification."""
+    """Verify Smart Ambiguity Clarification triggers on unspecified ranking metrics, validates real table columns, and offers top/bottom options."""
     from app.services.llm_service import MockLLMProvider
     provider = MockLLMProvider()
 
     schema = "Table: students\nColumns: student_id, name, email, cgpa\nTable: faculty\nColumns: faculty_id, name, email, department_id, designation, salary"
 
-    # 1. "show top 3 student" must trigger ambiguity clarification
+    # 1. "show top 3 student" must trigger ambiguity clarification without attendance column
     res_stu = await provider.generate_sql("show top 3 student", "postgres", schema)
     assert res_stu["needs_clarification"] is True
-    assert res_stu["clarification_question"] == "How would you like to rank top performers?"
-    assert res_stu["clarification_choices"] == ["Rank by CGPA", "Rank by Course Attendance %"]
+    assert "students" in res_stu["clarification_question"].lower() or "performers" in res_stu["clarification_question"].lower()
+    # Ensure attendance is NOT offered when no attendance column exists
+    assert not any("attendance" in c.lower() for c in res_stu["clarification_choices"])
+    # Ensure Top and Bottom options are offered based on real columns
+    assert any("Highest" in c or "Top" in c for c in res_stu["clarification_choices"])
+    assert any("Lowest" in c or "Bottom" in c for c in res_stu["clarification_choices"])
     assert res_stu["sql_statements"] == []
 
-    # 2. "show top 3 faculty" must trigger ambiguity clarification
+    # 2. "show top 3 faculty" must trigger ambiguity clarification with salary options
     res_fac = await provider.generate_sql("show top 3 faculty", "postgres", schema)
     assert res_fac["needs_clarification"] is True
     assert res_fac["clarification_question"] == "How would you like to rank faculty members?"
     assert "Rank by Highest Paid (Salary)" in res_fac["clarification_choices"]
+    assert "Rank by Lowest Paid (Salary)" in res_fac["clarification_choices"]
     assert res_fac["sql_statements"] == []
 
-    # 3. Follow-up "Rank by CGPA" via session context preserves LIMIT 3
+    # 3. Follow-up "Rank by Highest CGPA (Top Performers)" via session context preserves LIMIT 3
     session_ctx = [{"nl_query": "show top 3 student", "role": "user"}]
-    res_clarified = await provider.generate_sql("Rank by CGPA", "postgres", schema, session_context=session_ctx)
+    res_clarified = await provider.generate_sql("Rank by Highest CGPA (Top Performers)", "postgres", schema, session_context=session_ctx)
     assert res_clarified["needs_clarification"] is False
     assert len(res_clarified["sql_statements"]) == 1
     stmt = res_clarified["sql_statements"][0]["sql"]
     assert "LIMIT 3" in stmt
     assert 'ORDER BY "cgpa" DESC' in stmt
 
-    # 4. Form A pill click "show top 3 student (Rank by CGPA)" preserves LIMIT 3
-    res_pill = await provider.generate_sql("show top 3 student (Rank by CGPA)", "postgres", schema)
-    assert res_pill["needs_clarification"] is False
-    stmt_pill = res_pill["sql_statements"][0]["sql"]
-    assert "LIMIT 3" in stmt_pill
-    assert 'ORDER BY "cgpa" DESC' in stmt_pill
+    # 4. Form A pill click "show top 3 student (Rank by Lowest CGPA (Bottom Performers))" generates ASC
+    res_pill_bottom = await provider.generate_sql("show top 3 student (Rank by Lowest CGPA (Bottom Performers))", "postgres", schema)
+    assert res_pill_bottom["needs_clarification"] is False
+    stmt_bottom = res_pill_bottom["sql_statements"][0]["sql"]
+    assert "LIMIT 3" in stmt_bottom
+    assert 'ORDER BY "cgpa" ASC' in stmt_bottom
+
+    # 5. Schema WITH attendance column offers attendance option
+    schema_att = "Table: students\nColumns: student_id, name, cgpa, attendance_pct"
+    res_att = await provider.generate_sql("show top 3 student", "postgres", schema_att)
+    assert any("Attendance" in c for c in res_att["clarification_choices"])
 
 
 
