@@ -8,7 +8,6 @@ import {
   exportQueryCSV,
   getDatabaseConnections
 } from '../context/api';
-import { useAuth } from '../context/AuthContext';
 import './ChatPage.css';
 
 /** Detect query operation type from natural language text */
@@ -911,8 +910,6 @@ function ResultScreen({ query, data, onNewQuery, onRegenerate, queryId }) {
 
 // ─── Main ChatPage ─────────────────────────────────────────────────────────────
 export default function ChatPage({ view = 'workspace' }) {
-  const { _user } = useAuth();
-
   const [activeQuery,    setActiveQuery]    = useState('');
   const [queryResult,    setQueryResult]    = useState(null);
   const [currentView,    setCurrentView]    = useState(view);
@@ -940,7 +937,7 @@ export default function ChatPage({ view = 'workspace' }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step 1: User runs Natural Language Query -> Call POST /api/queries
-  const handleRunQuery = useCallback(async (text, _inputType = 'text', dbId) => {
+  const handleRunQuery = useCallback(async (text, inputType = 'text', dbId) => {
     const trimmed = text.trim();
     if (!trimmed) return;
     setActiveQuery(trimmed);
