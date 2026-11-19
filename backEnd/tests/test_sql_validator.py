@@ -155,13 +155,13 @@ def test_sql_validator_singular_plural_faculty_faculties():
 
 @pytest.mark.asyncio
 async def test_mock_llm_top_n_students_with_singular_plural_resolution():
-    """Verify MockLLMProvider extracts Top N limit and resolves singular/plural table names."""
+    """Verify MockLLMProvider extracts Top N limit and resolves singular/plural table names when metric is specified."""
     from app.services.llm_service import MockLLMProvider
     provider = MockLLMProvider()
 
     # 1. Schema has plural 'students'
     schema_plural = "Table: students\nColumns: student_id, name, email, cgpa"
-    res1 = await provider.generate_sql("show top 5 students", "postgres", schema_plural)
+    res1 = await provider.generate_sql("show top 5 students by cgpa", "postgres", schema_plural)
     assert res1["status"] == "success"
     stmt1 = res1["sql_statements"][0]
     assert "LIMIT 5" in stmt1["sql"]
@@ -170,12 +170,52 @@ async def test_mock_llm_top_n_students_with_singular_plural_resolution():
 
     # 2. Schema has singular 'student'
     schema_singular = "Table: student\nColumns: student_id, name, email, cgpa"
-    res2 = await provider.generate_sql("show top 5 students", "postgres", schema_singular)
+    res2 = await provider.generate_sql("show top 5 students by cgpa", "postgres", schema_singular)
     assert res2["status"] == "success"
     stmt2 = res2["sql_statements"][0]
     assert "LIMIT 5" in stmt2["sql"]
     assert '"student"' in stmt2["sql"]
     assert 'ORDER BY "cgpa" DESC' in stmt2["sql"]
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_ranking_ambiguity_clarification_dialog():
+    """Verify Smart Ambiguity Clarification triggers on unspecified ranking metrics and preserves Top N on clarification."""
+    from app.services.llm_service import MockLLMProvider
+    provider = MockLLMProvider()
+
+    schema = "Table: students\nColumns: student_id, name, email, cgpa\nTable: faculty\nColumns: faculty_id, name, email, department_id, designation, salary"
+
+    # 1. "show top 3 student" must trigger ambiguity clarification
+    res_stu = await provider.generate_sql("show top 3 student", "postgres", schema)
+    assert res_stu["needs_clarification"] is True
+    assert res_stu["clarification_question"] == "How would you like to rank top performers?"
+    assert res_stu["clarification_choices"] == ["Rank by CGPA", "Rank by Course Attendance %"]
+    assert res_stu["sql_statements"] == []
+
+    # 2. "show top 3 faculty" must trigger ambiguity clarification
+    res_fac = await provider.generate_sql("show top 3 faculty", "postgres", schema)
+    assert res_fac["needs_clarification"] is True
+    assert res_fac["clarification_question"] == "How would you like to rank faculty members?"
+    assert "Rank by Highest Paid (Salary)" in res_fac["clarification_choices"]
+    assert res_fac["sql_statements"] == []
+
+    # 3. Follow-up "Rank by CGPA" via session context preserves LIMIT 3
+    session_ctx = [{"nl_query": "show top 3 student", "role": "user"}]
+    res_clarified = await provider.generate_sql("Rank by CGPA", "postgres", schema, session_context=session_ctx)
+    assert res_clarified["needs_clarification"] is False
+    assert len(res_clarified["sql_statements"]) == 1
+    stmt = res_clarified["sql_statements"][0]["sql"]
+    assert "LIMIT 3" in stmt
+    assert 'ORDER BY "cgpa" DESC' in stmt
+
+    # 4. Form A pill click "show top 3 student (Rank by CGPA)" preserves LIMIT 3
+    res_pill = await provider.generate_sql("show top 3 student (Rank by CGPA)", "postgres", schema)
+    assert res_pill["needs_clarification"] is False
+    stmt_pill = res_pill["sql_statements"][0]["sql"]
+    assert "LIMIT 3" in stmt_pill
+    assert 'ORDER BY "cgpa" DESC' in stmt_pill
+
 
 
 
