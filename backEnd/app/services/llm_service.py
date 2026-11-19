@@ -130,13 +130,14 @@ Rules:
 3. When matching dates without an explicit year (e.g. "1 November"), use the current reference year ({current_year}) instead of outdated years.
 4. Do NOT generate MySQL-specific syntax for PostgreSQL or vice-versa. Use ONLY real columns from the schema above (e.g. for faculty table use name, email, department_id, designation, salary; never invent first_name/last_name if not in schema).
 5. SMART AMBIGUITY CLARIFICATION:
-   - If the user query is vague, broad, or could lead to multiple distinct interpretations (e.g., 'show best records', 'top performers', 'fetch top faculty members', 'top faculty', 'recent orders' without timeframe, or multiple matching tables/metrics), do NOT guess blindly.
-   - For example, if user asks 'fetch top faculty members' or 'top faculty', ask 'How would you like to rank faculty members?' with choices ["Rank by Highest Paid (Salary)", "Rank by Designation", "Show All Faculty Details"].
+   - If the user query is vague, broad, or lacks ranking criteria (e.g. 'show top 3 student', 'top 5 students', 'top performers', 'fetch top faculty members', 'top faculty', 'recent orders' without timeframe), do NOT guess blindly.
+   - For example, if user asks 'show top 3 student', 'top 5 students', or 'top performers' without specifying the ranking metric (CGPA vs Attendance), ask 'How would you like to rank top performers?' with choices ["Rank by CGPA", "Rank by Course Attendance %"].
+   - For example, if user asks 'fetch top faculty members', 'top faculty', or 'show top 3 faculty', ask 'How would you like to rank faculty members?' with choices ["Rank by Highest Paid (Salary)", "Rank by Designation", "Show All Faculty Details"].
    - Set "needs_clarification": true.
    - Set "clarification_question": A polite, concise question asking how they want to filter or categorize the data.
    - Set "clarification_choices": An array of 2 to 4 distinct, actionable options.
    - Set "sql_statements": [].
-   - If the query is clear and unambiguous, or is an answer to a clarification (e.g., 'Rank by Highest Paid (Salary)', 'highest paid status', 'by salary'), set "needs_clarification": false with null question and choices, and generate the SQL statements.
+   - If the query is clear and unambiguous, or is an answer to a clarification (e.g. 'Rank by CGPA', 'Rank by Highest Paid (Salary)', 'highest paid status', 'show top 3 students by cgpa'), set "needs_clarification": false with null question and choices, and generate the SQL statements with the appropriate ORDER BY and LIMIT.
 6. MULTI-STATEMENT / COMPOUND QUERIES:
    - When the user asks for multiple operations in a single prompt (e.g. 'insert and update at same time', 'insert faculty and select all faculty', 'update X and delete Y'):
    - Generate EACH operation as an independent item in the 'sql_statements' array in proper sequential execution order!
@@ -164,9 +165,9 @@ Rules:
    - If the user writes plural 'students' or 'show top 5 students' but the schema has 'students', use 'students'. If the schema has 'student', use 'student'.
    - If the user writes singular 'department' but the schema defines 'departments', use 'departments'.
 9. RANKING & "TOP N" QUERIES:
-   - When the user query asks for "top N", "best", "highest", or "top" records (e.g. "show top 3 student", "top 5 students", "top faculty"):
-   - You MUST include BOTH an ORDER BY clause descending on the primary ranking attribute (e.g. "ORDER BY cgpa DESC" for students, "ORDER BY salary DESC" for faculty, "ORDER BY price DESC" for products) AND the LIMIT clause (e.g. "LIMIT 3").
-   - NEVER generate an un-ordered LIMIT query when the user asks for "top" or "best", because without ORDER BY, the database returns arbitrary unsorted records instead of the top ones!
+   - When the user query specifies a ranking metric or clarifies one (e.g. "show top 3 students by cgpa", "Rank by CGPA", "top 5 faculty by salary"):
+   - You MUST include BOTH an ORDER BY clause descending on the specified ranking attribute (e.g. "ORDER BY cgpa DESC" for students, "ORDER BY salary DESC" for faculty, "ORDER BY price DESC" for products) AND the LIMIT clause (e.g. "LIMIT 3" or "LIMIT 5").
+   - NEVER generate an un-ordered LIMIT query when the user asks for "top" or "best".
 """
 
 
@@ -819,6 +820,23 @@ class MockLLMProvider(LLMProvider):
     def is_available(self) -> bool:
         return True
 
+    def _extract_limit(self, lower: str, session_context: Optional[List[Dict[str, Any]]] = None) -> Optional[int]:
+        """Extract explicit limit N from current query or previous turns in session context."""
+        m = re.search(r'\b(?:top|first|limit)\s+(\d+)\b', lower)
+        if m:
+            return int(m.group(1))
+        if session_context:
+            for turn in reversed(session_context):
+                prev = ""
+                if isinstance(turn, dict):
+                    prev = turn.get("user") or turn.get("nl_query") or turn.get("query") or ""
+                elif isinstance(turn, str):
+                    prev = turn
+                pm = re.search(r'\b(?:top|first|limit)\s+(\d+)\b', prev.lower())
+                if pm:
+                    return int(pm.group(1))
+        return None
+
     async def generate_sql(
         self,
         nl_query: str,
@@ -1005,20 +1023,23 @@ class MockLLMProvider(LLMProvider):
         # 3. Clarified Ambiguity Resolutions (prevent infinite ambiguity loop for SELECT queries)
         # Faculty clarified ambiguity resolutions
         is_faculty_context = (
-            ("faculty" in lower or "faculties" in lower) or
-            any(k in lower for k in ("highest paid", "rank by highest paid", "highest paid status", "rank by designation", "by designation", "all faculty", "show all faculty")) or
+            ("faculty" in lower or "faculties" in lower or "professor" in lower or "professors" in lower or "teacher" in lower) or
+            target_table == "faculty" or
+            any(k in lower for k in ("highest paid", "rank by highest paid", "highest paid status", "rank by designation", "by designation", "all faculty", "show all faculty", "rank by salary")) or
             ("faculty" in schema_text.lower() and any(k in lower for k in (
                 "highest paid", "highest paid status", "rank by highest paid",
                 "rank by designation", "show all faculty", "faculty details"
-            )))
+            ))) or
+            (bool(session_context) and any("faculty" in str(turn).lower() for turn in session_context))
         )
 
         if is_faculty_context and any(k in lower for k in (
             "highest paid", "rank by highest paid", "highest paid status", "rank by salary",
-            "top paid", "best paid", "highest salary", "rank by highest paid (salary)"
+            "top paid", "best paid", "highest salary", "rank by highest paid (salary)", "by salary"
         )):
+            lim = self._extract_limit(lower, session_context) or 10
             if db_type.lower() in ("mongodb", "mongo"):
-                mql = {"collection": "faculty", "operation": "find", "filter": {}, "sort": {"salary": -1}}
+                mql = {"collection": "faculty", "operation": "find", "filter": {}, "sort": {"salary": -1}, "limit": lim}
                 return {
                     "status": "success",
                     "intent": "Top faculty members ranked by salary",
@@ -1029,7 +1050,7 @@ class MockLLMProvider(LLMProvider):
                 }
             else:
                 quote = "`" if db_type == "mysql" else '"'
-                sql = f"SELECT faculty_id, name, email, department_id, designation, salary FROM {quote}faculty{quote} ORDER BY salary DESC LIMIT 10;"
+                sql = f"SELECT faculty_id, name, email, department_id, designation, salary FROM {quote}faculty{quote} ORDER BY salary DESC LIMIT {lim};"
                 return {
                     "status": "success",
                     "intent": "Top faculty members ranked by salary",
@@ -1040,8 +1061,9 @@ class MockLLMProvider(LLMProvider):
                 }
 
         if is_faculty_context and any(k in lower for k in ("rank by designation", "by designation", "designation rank")):
+            lim = self._extract_limit(lower, session_context) or 10
             if db_type.lower() in ("mongodb", "mongo"):
-                mql = {"collection": "faculty", "operation": "find", "filter": {}, "sort": {"designation": 1}}
+                mql = {"collection": "faculty", "operation": "find", "filter": {}, "sort": {"designation": 1}, "limit": lim}
                 return {
                     "status": "success",
                     "intent": "Faculty members ranked by designation",
@@ -1052,7 +1074,7 @@ class MockLLMProvider(LLMProvider):
                 }
             else:
                 quote = "`" if db_type == "mysql" else '"'
-                sql = f"SELECT faculty_id, name, email, department_id, designation FROM {quote}faculty{quote} ORDER BY designation ASC LIMIT 10;"
+                sql = f"SELECT faculty_id, name, email, department_id, designation FROM {quote}faculty{quote} ORDER BY designation ASC LIMIT {lim};"
                 return {
                     "status": "success",
                     "intent": "Faculty members ranked by designation",
@@ -1085,20 +1107,35 @@ class MockLLMProvider(LLMProvider):
                     "clarification_choices": None
                 }
 
-        if ("top performer" in lower or "best student" in lower) and ("attendance" in lower or "course" in lower):
+        # Student clarified ambiguity resolutions
+        is_student_context = (
+            ("student" in lower or "students" in lower or "performer" in lower or "performers" in lower) or
+            target_table in ("students", "student") or
+            any(k in lower for k in ("rank by cgpa", "by cgpa", "cgpa", "course attendance", "rank by course attendance")) or
+            (bool(session_context) and any("student" in str(turn).lower() for turn in session_context))
+        )
+
+        if is_student_context and any(k in lower for k in (
+            "attendance", "course attendance", "rank by course attendance", "attendance_pct", "attendance %"
+        )):
+            lim = self._extract_limit(lower, session_context) or 10
+            quote = "`" if db_type == "mysql" else '"'
+            student_tbl = target_table if target_table in ("students", "student") else "students"
             if db_type.lower() in ("mongodb", "mongo"):
-                mql = {"collection": "students", "operation": "find", "filter": {}, "sort": {"attendance_pct": -1}}
+                mql = {"collection": student_tbl, "operation": "find", "filter": {}, "sort": {"attendance_pct": -1}, "limit": lim}
                 return {
                     "status": "success",
-                    "intent": "Top students ranked by attendance percentage",
+                    "intent": "Top students ranked by course attendance percentage",
                     "sql_statements": [{"sql": json.dumps(mql, indent=2), "operation": "SELECT", "mql": mql}],
                     "needs_clarification": False,
                     "clarification_question": None,
                     "clarification_choices": None
                 }
             else:
-                quote = "`" if db_type == "mysql" else '"'
-                sql = "SELECT s.student_id, s.first_name, s.last_name, e.attendance_pct FROM students s JOIN enrollments e ON s.student_id = e.student_id ORDER BY e.attendance_pct DESC LIMIT 10;"
+                if "enrollments" in schema_text.lower():
+                    sql = f"SELECT s.student_id, s.name, e.attendance_pct FROM {quote}{student_tbl}{quote} s JOIN enrollments e ON s.student_id = e.student_id ORDER BY e.attendance_pct DESC LIMIT {lim};"
+                else:
+                    sql = f"SELECT * FROM {quote}{student_tbl}{quote} ORDER BY {quote}attendance_pct{quote} DESC LIMIT {lim};"
                 return {
                     "status": "success",
                     "intent": "Top students ranked by course attendance percentage",
@@ -1108,9 +1145,17 @@ class MockLLMProvider(LLMProvider):
                     "clarification_choices": None
                 }
 
-        if ("top performer" in lower or "best student" in lower) and ("cgpa" in lower or "grade" in lower):
+        if is_student_context and any(k in lower for k in (
+            "cgpa", "grade", "marks", "score", "rank by cgpa", "by cgpa"
+        )):
+            lim = self._extract_limit(lower, session_context)
+            quote = "`" if db_type == "mysql" else '"'
+            student_tbl = target_table if target_table in ("students", "student") else "students"
+            limit_clause = f" LIMIT {lim}" if lim else ""
             if db_type.lower() in ("mongodb", "mongo"):
-                mql = {"collection": "students", "operation": "find", "filter": {}, "sort": {"cgpa": -1}}
+                mql = {"collection": student_tbl, "operation": "find", "filter": {}, "sort": {"cgpa": -1}}
+                if lim:
+                    mql["limit"] = lim
                 return {
                     "status": "success",
                     "intent": "Top students ranked by CGPA",
@@ -1120,7 +1165,7 @@ class MockLLMProvider(LLMProvider):
                     "clarification_choices": None
                 }
             else:
-                sql = "SELECT student_id, first_name, last_name, cgpa FROM students ORDER BY cgpa DESC LIMIT 10;"
+                sql = f"SELECT * FROM {quote}{student_tbl}{quote} ORDER BY {quote}cgpa{quote} DESC{limit_clause};"
                 return {
                     "status": "success",
                     "intent": "Top students ranked by CGPA",
@@ -1152,16 +1197,19 @@ class MockLLMProvider(LLMProvider):
                 "clarification_choices": None
             }
 
-        # 2. Trigger Ambiguity if NOT yet clarified
+        # 4. Trigger Ambiguity if NOT yet clarified
         # Ambiguity Trigger for Faculty
-        if lower.strip() in (
-            "fetch top faculty members", "fetch top faculty", "top faculty members",
-            "top faculty", "best faculty", "show top faculty", "show top faculty members",
-            "get top faculty", "list top faculty"
-        ) or (
-            ("top faculty" in lower or "best faculty" in lower) and
-            not any(k in lower for k in ("salary", "paid", "designation", "detail", "all faculty", "("))
-        ):
+        is_faculty_ambiguous = (
+            bool(re.search(r'\b(top|best|highest|rank|leading|topmost)\b(?:\s+\d+)?\s+(?:faculty|faculties|professors?|teachers?)', lower)) or
+            (any(k in lower for k in ("faculty", "faculties", "professor", "professors", "teacher", "teachers")) and any(k in lower for k in ("top", "best", "rank", "leading", "topmost"))) or
+            lower.strip() in (
+                "fetch top faculty members", "fetch top faculty", "top faculty members",
+                "top faculty", "best faculty", "show top faculty", "show top faculty members",
+                "get top faculty", "list top faculty"
+            )
+        ) and not any(k in lower for k in ("salary", "paid", "designation", "detail", "all faculty", "rank by", "("))
+
+        if is_faculty_ambiguous:
             return {
                 "status": "success",
                 "intent": "Ambiguity detected on faculty ranking criteria",
@@ -1171,9 +1219,14 @@ class MockLLMProvider(LLMProvider):
                 "clarification_choices": ["Rank by Highest Paid (Salary)", "Rank by Designation", "Show All Faculty Details"]
             }
 
-        if lower.strip() in ("show top performers", "top performers", "best students", "top students") or (
-            ("top performer" in lower or "best student" in lower) and "(" not in lower
-        ):
+        # Ambiguity Trigger for Students
+        is_student_ambiguous = (
+            bool(re.search(r'\b(top|best|highest|rank|leading|topmost)\b(?:\s+\d+)?\s+(?:students?|performers?)', lower)) or
+            (any(k in lower for k in ("student", "students", "performer", "performers")) and any(k in lower for k in ("top", "best", "rank", "leading", "topmost"))) or
+            lower.strip() in ("show top performers", "top performers", "best students", "top students", "top student", "show top student")
+        ) and not any(k in lower for k in ("cgpa", "attendance", "grade", "marks", "score", "attendance_pct", "percentage", "rank by", "("))
+
+        if is_student_ambiguous:
             return {
                 "status": "success",
                 "intent": "Ambiguity detected on ranking criteria",
