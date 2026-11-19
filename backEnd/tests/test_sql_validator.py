@@ -166,6 +166,7 @@ async def test_mock_llm_top_n_students_with_singular_plural_resolution():
     stmt1 = res1["sql_statements"][0]
     assert "LIMIT 5" in stmt1["sql"]
     assert '"students"' in stmt1["sql"]
+    assert 'ORDER BY "cgpa" DESC' in stmt1["sql"]
 
     # 2. Schema has singular 'student'
     schema_singular = "Table: student\nColumns: student_id, name, email, cgpa"
@@ -174,6 +175,7 @@ async def test_mock_llm_top_n_students_with_singular_plural_resolution():
     stmt2 = res2["sql_statements"][0]
     assert "LIMIT 5" in stmt2["sql"]
     assert '"student"' in stmt2["sql"]
+    assert 'ORDER BY "cgpa" DESC' in stmt2["sql"]
 
 
 

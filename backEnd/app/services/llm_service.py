@@ -163,7 +163,10 @@ Rules:
    - Always match the user's entity (e.g. 'students', 'student', 'faculty', 'faculties', 'departments', 'department', 'courses', 'course') to the EXACT physical table name defined in the schema above.
    - If the user writes plural 'students' or 'show top 5 students' but the schema has 'students', use 'students'. If the schema has 'student', use 'student'.
    - If the user writes singular 'department' but the schema defines 'departments', use 'departments'.
-   - When the user asks for 'top N' or 'limit N' (e.g. 'show top 5 students'), always generate a LIMIT clause with that exact N (and an ORDER BY if ranking).
+9. RANKING & "TOP N" QUERIES:
+   - When the user query asks for "top N", "best", "highest", or "top" records (e.g. "show top 3 student", "top 5 students", "top faculty"):
+   - You MUST include BOTH an ORDER BY clause descending on the primary ranking attribute (e.g. "ORDER BY cgpa DESC" for students, "ORDER BY salary DESC" for faculty, "ORDER BY price DESC" for products) AND the LIMIT clause (e.g. "LIMIT 3").
+   - NEVER generate an un-ordered LIMIT query when the user asks for "top" or "best", because without ORDER BY, the database returns arbitrary unsorted records instead of the top ones!
 """
 
 
@@ -1229,21 +1232,41 @@ class MockLLMProvider(LLMProvider):
                 limit_num = int(limit_m.group(1))
                 limit_clause = f" LIMIT {limit_num}"
 
+            is_top_query = bool(re.search(r'\b(top|best|highest|leading|rank|topmost)\b', lower))
+            is_bottom_query = bool(re.search(r'\b(lowest|bottom|worst)\b', lower))
+            direction = "ASC" if is_bottom_query else "DESC"
+
+            order_clause = ""
+            if is_top_query or is_bottom_query:
+                t_low = target_table.lower()
+                if "student" in t_low:
+                    order_clause = f" ORDER BY {quote}cgpa{quote} {direction}"
+                elif "faculty" in t_low or "teacher" in t_low or "employee" in t_low:
+                    order_clause = f" ORDER BY {quote}salary{quote} {direction}"
+                elif "product" in t_low:
+                    order_clause = f" ORDER BY {quote}price{quote} {direction}"
+                elif "order" in t_low:
+                    order_col = "total_amount" if "total_amount" in schema_text.lower() else "amount"
+                    order_clause = f" ORDER BY {quote}{order_col}{quote} {direction}"
+
+            where_clause = ""
+            if "ahmedabad" in lower:
+                where_clause = f" WHERE {quote}city{quote} = 'Ahmedabad'"
+            elif "unpaid" in lower or "pending" in lower:
+                where_clause = f" WHERE {quote}status{quote} = 'Pending'"
+            elif "inactive" in lower:
+                where_clause = f" WHERE {quote}status{quote} = 'Inactive'"
+
             if target_table == "faculty":
                 if "salary" in lower or "salaries" in lower:
-                    sql = f"SELECT faculty_id, name, designation, salary FROM {quote}faculty{quote}"
+                    sql = f"SELECT faculty_id, name, designation, salary FROM {quote}faculty{quote}{where_clause}{order_clause}"
                 else:
-                    sql = f"SELECT faculty_id, name, email, department_id, designation, salary FROM {quote}faculty{quote}"
+                    sql = f"SELECT faculty_id, name, email, department_id, designation, salary FROM {quote}faculty{quote}{where_clause}{order_clause}"
             elif "salary" in lower or "salaries" in lower:
-                sql = f"SELECT first_name, last_name, salary FROM {quote}{target_table}{quote}"
+                sql = f"SELECT first_name, last_name, salary FROM {quote}{target_table}{quote}{where_clause}{order_clause}"
             else:
-                sql = f"SELECT * FROM {quote}{target_table}{quote}"
-                if "ahmedabad" in lower:
-                    sql += f" WHERE {quote}city{quote} = 'Ahmedabad'"
-                elif "unpaid" in lower or "pending" in lower:
-                    sql += f" WHERE {quote}status{quote} = 'Pending'"
-                elif "inactive" in lower:
-                    sql += f" WHERE {quote}status{quote} = 'Inactive'"
+                sql = f"SELECT * FROM {quote}{target_table}{quote}{where_clause}{order_clause}"
+
             if limit_clause:
                 sql += limit_clause
         elif op == "UPDATE":
@@ -1875,12 +1898,26 @@ class MockLLMProvider(LLMProvider):
                 "filter": mql_filter
             }
 
+            # Top / Limit
+            limit_m = re.search(r'\b(?:top|first|limit)\s+(\d+)\b', lower)
+            if limit_m:
+                mql["limit"] = int(limit_m.group(1))
+
             # Sort
             m_sort = re.search(r'sort(?:ed)? by ([a-zA-Z0-9_]+)\s*(descending|desc|ascending|asc)?', lower)
             if m_sort:
                 s_field = m_sort.group(1)
                 s_dir = -1 if (m_sort.group(2) and "desc" in m_sort.group(2)) else 1
                 mql["sort"] = {s_field: s_dir}
+            else:
+                is_top = bool(re.search(r'\b(top|best|highest|leading|rank)\b', lower))
+                is_bottom = bool(re.search(r'\b(lowest|bottom|worst)\b', lower))
+                if is_top or is_bottom:
+                    s_dir = 1 if is_bottom else -1
+                    if "student" in target_coll.lower():
+                        mql["sort"] = {"cgpa": s_dir}
+                    elif "faculty" in target_coll.lower() or "teacher" in target_coll.lower():
+                        mql["sort"] = {"salary": s_dir}
 
             # Specific Projection
             if "only name and cgpa" in lower or "just name and cgpa" in lower:
